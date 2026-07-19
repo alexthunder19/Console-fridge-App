@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 class Program
 {
@@ -14,6 +15,17 @@ class Program
     private static readonly int _windowWidth = 100; //вместо 120
     private static readonly int _windowHeight = 30;
 
+    //чтобы заблокировать изменение размера окна
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
+
+    [DllImport("user32.dll")]
+    private static extern int DeleteMenu(IntPtr hMenu, int nPosition, int wFlags);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+
     static void Main()
     {
         Console.WindowWidth = _windowWidth;
@@ -21,14 +33,26 @@ class Program
         Console.WindowHeight = _windowHeight;
         Console.BufferHeight = _windowHeight;
 
+        // --- БЛОКИРОВКА РАЗМЕРА ОКНА ---
+        IntPtr handle = GetConsoleWindow(); // Получаем идентификатор окна нашей консоли
+        IntPtr sysMenu = GetSystemMenu(handle, false); // Получаем системное меню этого окна
+
+        if (handle != IntPtr.Zero)
+        {
+            DeleteMenu(sysMenu, 0xF000, 0x00000000); // 0xF000 — это команда SC_SIZE (изменение размера)
+            DeleteMenu(sysMenu, 0xF030, 0x00000000); // 0xF030 — это команда SC_MAXIMIZE (развернуть на весь экран)
+        }
+        // ---------------------------------
+
+
         // Создаём словарь storage
         Dictionary<string, int> storage = new Dictionary<string, int>();
         string[] things = new string[] { "Хлеба кусок", "Пакет молока","Сыра 100 г", "пиццы кусок",
-            "Латяо", "Конжак" , "Конжак зел"};//,
-            // "Колбаски", "Палка сырокопчёной", "Сигара",
-            //"Мороженка", "Конфета","Печенинка розовая",
-            //"Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г", 
-            //"Водка 100 г", "Пиво" };
+            "Латяо", "Конжак" , "Конжак зел",
+            "Колбаски", "Палка сырокопчёной", "Сигара",
+            "Мороженка", "Конфета","Печенинка розовая",
+            "Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г", 
+            "Водка 100 г", "Пиво" };
 
         //заполняем Словарь        
         for (int i = 0; i < things.Length; i++)
@@ -56,8 +80,8 @@ class Program
             // СИТУАЦИЯ 1: Продуктов меньше, чем пунктов меню, либо вообще продуктов нет — выводим меню фиксированно сверху справа
             if (storage.Count < menuLines.Length)
             {
-                // Превращаем словарь в массив pairs, чтобы обращаться по индексу (ведь foreach для пустого/короткого списка неудобен)
-                var pairs = storage.ToArray();
+                // Превращаем словарь в массив пар pairs[], чтобы обращаться по индексу (ведь foreach для пустого/короткого списка неудобен)
+                KeyValuePair<string, int>[] pairs = storage.ToArray();
 
                 // Цикл всегда идёт столько раз, сколько в меню строк
                 for (int i = 0; i < menuLines.Length; i++)
@@ -101,8 +125,6 @@ class Program
 
             Console.WriteLine("--------------------------");
         }
-
-
 
 
 
