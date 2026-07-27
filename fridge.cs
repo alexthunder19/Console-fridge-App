@@ -47,9 +47,9 @@ class Program
 
         // Создаём словарь storage
         Dictionary<string, int> storage = new Dictionary<string, int>();
-        string[] things = new string[] { "Хлеба кусок", "Пакет молока","Сыра 100 г", "пиццы кусок",
+        string[] things = new string[] { "Хлеба кусок", "Пакет молока" ,"Сыра 100 г", "пиццы кусок",
             "Латяо", "Конжак" , "Конжак зел",
-            "Колбаски", "Палка сырокопчёной", "Сигара",
+        "Колбаски", "Палка сырокопчёной", "Сигара",
             "Мороженка", "Конфета","Печенинка розовая",
             "Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г", 
             "Водка 100 г", "Пиво" };
@@ -63,17 +63,18 @@ class Program
         // Локальная функция для показа меню и содержимого
         void ShowStorage()
         {
-            WindowRestore();
+            //WindowRestore();
             Console.Clear(); // Очищаем экран
             Console.WriteLine("         продукты:          ");
 
             // Массив строк меню — компактно и удобно
             string[] menuLines = new string[]
             {
-        "            +    Добавить",
+        "            +    Увеличить",
         "            -    Уменьшить",
         "            P    добавить позицию",
         "            N    удалить позицию",
+        "            O    открыть файл",
         "            Esc  Выйти из программы"
             };
 
@@ -104,8 +105,8 @@ class Program
             else
             {
                 int i = 1;
-                int iMenu = (int)((storage.Count - 3) * 0.7);              
-                
+                int iMenu = (int)((storage.Count - (menuLines.Length - 2)) * 0.7);                
+
                 foreach (KeyValuePair<string, int> pair in storage)
                 {
                     Console.Write($"{pair.Key + ":",-20}{pair.Value,5} шт.");
@@ -128,25 +129,28 @@ class Program
 
 
 
-        while (true) //////////пользователь работает
+        while (true) /////////////////// пользователь работает ///////////////////////////////////////////////////////////
         {
-            //WindowRestore();
-            
             ShowStorage();
             // Получаем объект ConsoleKeyInfo
             ConsoleKey key = Console.ReadKey(true).Key;
 
-            if (key == ConsoleKey.Add) //******************добавить **********************************************
+            if (key == ConsoleKey.Add || key == ConsoleKey.OemPlus) //******************увеличить **********************************************
             {
-                WindowRestore();
+                //WindowRestore();
                 //добавляем
-                string str = InputStringWithHints("добавим чего и сколько? (либо Стрелка вниз): ", things, 20);
-                int count = InputNumberInt("введи количество: ", 0, 10000);
+                var result = ParseProductAndCount("Увеличим что и сколько? (либо Стрелка вниз): ", things);
+
+                string str = result.product;
+                int count = result.count;
+
+                //string str = InputStringWithHints("увеличим что и сколько? (либо Стрелка вниз): ", things, 20);
+                //int count = InputNumberInt("введи количество: ", 0, 10000);
 
                 //стираем
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
-                Console.Write(new string(' ', Console.WindowWidth * 2));
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
 
                 if (count == 0 || !storage.ContainsKey(str))
                 {
@@ -159,21 +163,15 @@ class Program
                 }
 
                 Console.SetCursorPosition(0, Console.CursorTop);
-                System.Threading.Thread.Sleep(1700);
-                //ClearUserErrors(0, "", "", 0);
-                //ShowStorage();
+                System.Threading.Thread.Sleep(1700);                
             }
 
 
-            else if (key == ConsoleKey.Subtract) //******************вычесть ******************************************
+            else if (key == ConsoleKey.Subtract || key == ConsoleKey.OemMinus) //******************вычесть ******************************************
             {
-                WindowRestore();
-                if (storage.Count == 0)
-                {
-                    if (storage.Count == 0)
-                        Console.WriteLine("    нечего убирать!" + "\n");
-                    continue;
-                }
+                //WindowRestore();
+                if (storage.Count == 0)  //хол-к пуст           
+                    continue;                
 
                 string str = InputStringWithHints("уменьшим что и сколько? (либо Стрелка вниз): ", storage.Keys.ToArray(), 20);               
                 int count = InputNumberInt("введи количество товара: ", 0);
@@ -183,9 +181,10 @@ class Program
                 Console.Write(new string(' ', Console.WindowWidth * 2));
                 Console.SetCursorPosition(0, Console.CursorTop - 2);
 
-                if (count == 0 || !storage.ContainsKey(str))
+                //если человек написал 0, либо нет такого продукта, либо продукт закончился, то не вычитаем
+                if (count == 0 || !storage.ContainsKey(str) || storage[str] == 0)
                     Console.Write("    вычли 0...");
-                else if (storage.ContainsKey(str))
+                else if (storage.ContainsKey(str)) //иначе вычитаем
                 {
                     if(count > storage[str])
                     {
@@ -196,15 +195,12 @@ class Program
                     {
                         Console.Write($"    съедены {count} \"{str}\"");
                         storage[str] -= count; //вычтем у элемента Словаря 
-                    }                    
-                                       
-                    
+                    }
                 }
                 Console.SetCursorPosition(0, Console.CursorTop);
-                System.Threading.Thread.Sleep(1700);
-                //ClearUserErrors(0, "", "", 0);
-                //ShowStorage();
+                System.Threading.Thread.Sleep(1700);                
             }
+
 
             if (key == ConsoleKey.P) //******************добавить позицию**********************************************
             {
@@ -232,10 +228,6 @@ class Program
                     Console.SetCursorPosition(0, Console.CursorTop);
                     System.Threading.Thread.Sleep(1100);
                 }
-
-                
-                //ClearUserErrors(0, "", "", 0);
-                //ShowStorage();
             }
 
 
@@ -274,10 +266,9 @@ class Program
 
 
                 Console.SetCursorPosition(0, Console.CursorTop);
-                System.Threading.Thread.Sleep(1000);
-                //ClearUserErrors(0, "", "", 0);
-                //ShowStorage();
+                System.Threading.Thread.Sleep(1000);                
             }
+
 
             else if (key == ConsoleKey.Escape) //******************выход**************************************************
             {
@@ -586,150 +577,118 @@ class Program
         return str;
     }
 
-    static string InputStringWithHintsWithNum(string inputMessage, string[] hints, int max = 60)
+    static (string product, int count) ParseProductAndCount(string inputMessage, string[] hints)
     {
-        string str = "";
+        Console.Write(inputMessage);
+
+        string str = ""; // То, что реально написано на экране
         string userStr = ""; // хранит ТОЛЬКО то, что вбито руками
         int hintsIndex = -1; // Индекс подсказки
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
-        Console.Write(inputMessage);
 
-        // ЦИКЛ 2: Посимвольный ввод и сборка строки
+        // ЦИКЛ 1: Сбор букв до нажатия Enter
         while (true)
-        {
-            // ЦИКЛ 1: Сбор букв до нажатия Enter
-            while (true)
+        {            
+            ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+
+            // 1. нажат ENTER — завершаем ввод
+            if (keyInfo.Key == ConsoleKey.Enter)
             {
-                WindowRestore();
-                var keyInfo = Console.ReadKey(true);
+                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
+                break;
+            }
 
-                // нажат ENTER — завершаем ввод
-                if (keyInfo.Key == ConsoleKey.Enter)
+            // 2. нажата СТРЕЛКА ВНИЗ — листаем подсказки (работает, только если в конце ЕЩЁ НЕТ цифр)
+            else if (keyInfo.Key == ConsoleKey.DownArrow && !str.Any(char.IsDigit))
+            {
+                if (hints == null || hints.Length == 0) continue;
+
+                hintsIndex = FindBestHints(userStr, hints, hintsIndex);
+
+                // Стираем старый ввод с экрана
+                ClearUserErrors(startingCursorTop, inputMessage, "", 0);                
+
+                // Подставляем значение из массива
+                str = hints[hintsIndex];
+
+                // Печатаем новую подсказку
+                Console.Write(str);
+            }
+
+            // 3. нажат BACKSPACE — удаляем символ
+            else if (keyInfo.Key == ConsoleKey.Backspace)
+            {
+                if (str.Length > 0)
                 {
-                    Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
-                    break;
-                }
-
-                // нажата СТРЕЛКА ВНИЗ — листаем подсказки
-                else if (keyInfo.Key == ConsoleKey.DownArrow)
-                {
-                    if (hints == null || hints.Length == 0) continue;
-
-                    // Листаем индекс по кругу
-                    //hintsIndex++;
-                    //if (hintsIndex >= hints.Length) hintsIndex = 0;
-
-                    hintsIndex = FindBestHints(userStr, hints, hintsIndex);
-
-                    // Стираем старый ввод с экрана
-                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-
-                    // Подставляем значение из массива
-                    str = hints[hintsIndex];
-
-                    // Печатаем новую подсказку
-                    Console.Write(str);
-                }
-
-                // нажат BACKSPACE — удаляем символ
-                else if (keyInfo.Key == ConsoleKey.Backspace)
-                {
-                    if (str.Length > 0)
-                    {
-                        // Если на экране была длинная подсказка, а пользователь нажал Backspace,
-                        // логично стереть подсказку и вернуться к тому, что он вводил руками
-                        if (str != userStr)
-                        {
-                            str = userStr;
-                        }
-
-                        // Стираем один настоящий символ
-                        if (str.Length > 0)
-                        {
-                            str = str.Substring(0, str.Length - 1);
-                            userStr = str; // Синхронизируем запрос
-                        }
-
-                        // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
-                        ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                        Console.Write(str);
-                    }
-                }
-
-                // нажата обычная буква или знак — печатаем
-                else if (!char.IsControl(keyInfo.KeyChar))
-                {
-                    // Если до этого стояла автоподсказка, и пользователь нажал букву,
-                    // он продолжает вводить СВОЙ текст, а не дописывает подсказку
+                    // Если на экране была длинная подсказка, а пользователь нажал Backspace,
+                    // логично стереть подсказку и вернуться к тому, что он вводил руками
                     if (str != userStr)
                     {
                         str = userStr;
                     }
 
-                    str += keyInfo.KeyChar;
-                    userStr = str; // Запоминаем, что это ввёл именно пользователь
+                    // Стираем один настоящий символ с конца строки
+                    if (str.Length > 0)
+                    {
+                        str = str.Substring(0, str.Length - 1);
 
+                        // Если мы стёрли цифры и вернулись к буквам, синхронизируем userStr
+                        if (!str.Any(char.IsDigit))
+                        {
+                            userStr = str;
+                        }
+                    }
+                    
+                    // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(str);
+                }
+            }
+
+            // 4. НАЖАТА ЦИФРА (0-9)
+            else if (char.IsDigit(keyInfo.KeyChar))
+            {
+                // Разрешаем вводить цифры, только если буквы УЖЕ выбраны (строка не пустая)
+                if (str.Length > 0)
+                {
+                    str += keyInfo.KeyChar;
                     Console.Write(keyInfo.KeyChar);
                 }
             }
 
-            //ЦИКЛ 2: Валидация строки
-
-            //если чистый enter, то Рандом
-            if (str.Length == 0)
+            // 5. нажата обычная буква или знак (разрешаем, только если цифры ЕЩЁ НЕ начались)
+            else if (!char.IsControl(keyInfo.KeyChar) && !str.Any(char.IsDigit))
             {
-                // если массив забыли заполнить или он пустой
-                if (hints == null || hints.Length == 0)
-                {
-                    str = $"Объект {_rnd.Next(1, 1000)}";
-                }
-                else
-                {
-                    int number = _rnd.Next(0, hints.Length);
-                    str = hints[number];
-                }
-                ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                Console.Write(str + "\n");
-                break;
+                str += keyInfo.KeyChar;
+                userStr = str; // Запоминаем, что это ввёл именно пользователь
+                Console.Write(keyInfo.KeyChar);
             }
-
-            // Если одни пробелы       
-            if (string.IsNullOrWhiteSpace(str))
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, "   введи чё-нибудь, или нажми Enter или Стрелку вниз");
-                str = "";
-                continue; // Возврат в начало цикла для нового ввода
-            }
-
-            //Чистим строку
-            str = str.Trim();
-            //только первая буква заглавная
-            str = str.ToLower();
-            str = str.Substring(0, 1).ToUpper() + str.Substring(1);
-            //разбиваем строку по пробелам, игнорируя пустые элементы
-            string[] words = str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            //сшиваем слова обратно, разделяя их ОДНИМ пробелом
-            str = string.Join(" ", words);
-
-            if (str.Length > max)
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -название не больше {max} символов!-");
-                str = "";
-                continue; // Возврат в начало цикла для нового ввода
-            }
-            if (!str.Any(char.IsLetter))
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -буквы тоже должны быть в названии!-");
-                str = "";
-                continue; // Возврат в начало цикла для нового ввода
-            }
-
-            ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-            Console.Write(str + "\n");
-            break;
         }
 
-        return str;
+        //--- ФИНАЛЬНЫЙ РАЗБОР СТРОКИ ПОСЛЕ ENTER ---
+
+        // Разделяем строку на буквы и цифры
+        string productPart = new string(str.Where(c => !char.IsDigit(c)).ToArray()).Trim();
+        string digitsPart = new string(str.Where(c => char.IsDigit(c)).ToArray());
+
+        // Валидация: проверяем, что продукт из получившейся строки РЕАЛЬНО есть в нашем массиве
+        // (на случай, если пользователь просто написал буквы руками и нажал Enter, не используя стрелку)
+        string finalProduct = hints.FirstOrDefault(h => CleanForSearch(h) == CleanForSearch(productPart));
+
+        // Если продукт не найден в списке, возвращаем пустую строку
+        if (finalProduct == null)
+        {
+            return ("", 0);
+        }
+
+        // Переводим цифры в число int (если цифр не было, запишем 0)
+        int finalCount = 0;
+        if (!string.IsNullOrEmpty(digitsPart))
+        {
+            int.TryParse(digitsPart, out finalCount);
+        }
+
+        return (finalProduct, finalCount);
     }
 
     // функция для очистки ВСЕХ неверных данных введённых пользователем и вывода временного сообщения об ошибке
