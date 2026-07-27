@@ -579,14 +579,17 @@ class Program
 
     static (string product, int count) ParseProductAndCount(string inputMessage, string[] hints)
     {
+        int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
 
-        string str = ""; // То, что реально написано на экране
-        string userStr = ""; // хранит ТОЛЬКО то, что вбито руками
-        int hintsIndex = -1; // Индекс подсказки
-        int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
+        string productStr = ""; // Текстовая строка (финализируется при первой цифре)
+        string countStr = "";   // Числовая строка (заполняется только цифрами)
+        string userStr = "";    // То, что пользователь набрал своими руками (до 3 букв)
+        int hintsIndex = -1;
 
-        // ЦИКЛ 1: Сбор букв до нажатия Enter
+        bool isHintActive = false; // Флаг: активна ли сейчас подсказка на экране
+
+        // ЦИКЛ: Сбор букв до нажатия Enter
         while (true)
         {            
             ConsoleKeyInfo keyInfo = Console.ReadKey(true);
@@ -598,94 +601,103 @@ class Program
                 break;
             }
 
-            // 2. нажата СТРЕЛКА ВНИЗ — листаем подсказки (работает, только если в конце ЕЩЁ НЕТ цифр)
-            else if (keyInfo.Key == ConsoleKey.DownArrow && !str.Any(char.IsDigit))
+            // 2. нажата СТРЕЛКА ВНИЗ — листаем подсказки
+            else if (keyInfo.Key == ConsoleKey.DownArrow)
             {
-                if (hints == null || hints.Length == 0) continue;
+                // Стрелка работает, только если мы ещё НЕ начали вводить цифры
+                if (countStr.Length > 0 || hints == null || hints.Length == 0) continue;
 
                 hintsIndex = FindBestHints(userStr, hints, hintsIndex);
 
                 // Стираем старый ввод с экрана
-                ClearUserErrors(startingCursorTop, inputMessage, "", 0);                
+                ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
-                // Подставляем значение из массива
-                str = hints[hintsIndex];
-
-                // Печатаем новую подсказку
-                Console.Write(str);
+                productStr = hints[hintsIndex]; // Подставляем значение из массива
+                isHintActive = true;     // Включаем режим подсказки                
+                Console.Write(productStr); // Печатаем новую подсказку
             }
 
             // 3. нажат BACKSPACE — удаляем символ
             else if (keyInfo.Key == ConsoleKey.Backspace)
             {
-                if (str.Length > 0)
+                // Стираем цифру, если числовая строка не пустая
+                if (countStr.Length > 0)
                 {
-                    // Если на экране была длинная подсказка, а пользователь нажал Backspace,
-                    // логично стереть подсказку и вернуться к тому, что он вводил руками
-                    if (str != userStr)
+                    countStr = countStr.Substring(0, countStr.Length - 1);
+
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(productStr + countStr);
+                }
+                // Если цифр нет, но на экране была подсказка целиком
+                else if (isHintActive)
+                {
+                    productStr = userStr; // Сбрасываем до родных букв пользователя
+                    isHintActive = false;
+
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(productStr);
+                }
+                // Если цифр нет, подсказки нет, но пользователь стирает свои буквы ИЛИ разрушает текст подсказки, в которую уже вбивал и стёр цифры
+                else if (productStr.Length > 0)
+                {
+                    productStr = productStr.Substring(0, productStr.Length - 1);
+
+                    // Если мы всё ещё в пределах первых 3 букв ввода пользователя
+                    if (userStr.Length > 0 && productStr.Length <= userStr.Length)
                     {
-                        str = userStr;
+                        userStr = productStr;
                     }
 
-                    // Стираем один настоящий символ с конца строки
-                    if (str.Length > 0)
-                    {
-                        str = str.Substring(0, str.Length - 1);
-
-                        // Если мы стёрли цифры и вернулись к буквам, синхронизируем userStr
-                        if (!str.Any(char.IsDigit))
-                        {
-                            userStr = str;
-                        }
-                    }
-                    
                     // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
                     ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                    Console.Write(str);
+                    Console.Write(productStr);
                 }
             }
-
+            
             // 4. НАЖАТА ЦИФРА (0-9)
             else if (char.IsDigit(keyInfo.KeyChar))
             {
-                // Разрешаем вводить цифры, только если буквы УЖЕ выбраны (строка не пустая)
-                if (str.Length > 0)
+                // Разрешаем вводить цифры, только если продукт уже хоть как-то выбран/набран
+                if (productStr.Length > 0)
                 {
-                    str += keyInfo.KeyChar;
+                    isHintActive = false; // Текст зафиксирован, режим подсказки отключается
+                    countStr += keyInfo.KeyChar;
                     Console.Write(keyInfo.KeyChar);
                 }
             }
 
-            // 5. нажата обычная буква или знак (разрешаем, только если цифры ЕЩЁ НЕ начались)
-            else if (!char.IsControl(keyInfo.KeyChar) && !str.Any(char.IsDigit))
+            // 5. НАБРАНА ОБЫЧНАЯ БУКВА (Пробел запрещён)
+            else if (!char.IsControl(keyInfo.KeyChar) && keyInfo.KeyChar != ' ')
             {
-                str += keyInfo.KeyChar;
-                userStr = str; // Запоминаем, что это ввёл именно пользователь
-                Console.Write(keyInfo.KeyChar);
+                // Буквы разрешены, только если:
+                // 1. Ещё НЕ нажата стрелка (подсказка)
+                // 2. Ещё НЕ введены цифры
+                // 3. Пользователь ввёл МЕНЬШЕ 3 букв
+                if (countStr.Length == 0 && !isHintActive && userStr.Length < 3)
+                {                    
+                    productStr += keyInfo.KeyChar;
+                    userStr = productStr; // Запоминаем, что это ввёл именно пользователь
+                    Console.Write(keyInfo.KeyChar);
+                }
             }
         }
 
-        //--- ФИНАЛЬНЫЙ РАЗБОР СТРОКИ ПОСЛЕ ENTER ---
+        // --- ФИНАЛЬНЫЙ ПРОСТЕЙШИЙ ПАРСИНГ --- ПОСЛЕ ENTER ---
 
-        // Разделяем строку на буквы и цифры
-        string productPart = new string(str.Where(c => !char.IsDigit(c)).ToArray()).Trim();
-        string digitsPart = new string(str.Where(c => char.IsDigit(c)).ToArray());
+        // Проверяем, совпадает ли финализированная текстовая строка с реальным продуктом из базы
+        string finalProduct = hints.FirstOrDefault(h => CleanForSearch(h) == CleanForSearch(productStr));
 
-        // Валидация: проверяем, что продукт из получившейся строки РЕАЛЬНО есть в нашем массиве
-        // (на случай, если пользователь просто написал буквы руками и нажал Enter, не используя стрелку)
-        string finalProduct = hints.FirstOrDefault(h => CleanForSearch(h) == CleanForSearch(productPart));
-
-        // Если продукт не найден в списке, возвращаем пустую строку
+        // Если пользователь стёр хотя бы одну букву из подсказки — finalProduct станет null, и метод вернёт пустоту
         if (finalProduct == null)
         {
             return ("", 0);
         }
 
-        // Переводим цифры в число int (если цифр не было, запишем 0)
+        // Переводим нашу изолированную числовую строку в int
         int finalCount = 0;
-        if (!string.IsNullOrEmpty(digitsPart))
+        if (countStr.Length > 0)
         {
-            int.TryParse(digitsPart, out finalCount);
+            int.TryParse(countStr, out finalCount);
         }
 
         return (finalProduct, finalCount);
