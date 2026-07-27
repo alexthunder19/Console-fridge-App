@@ -139,7 +139,7 @@ class Program
             {
                 //WindowRestore();
                 //добавляем
-                var result = ParseProductAndCount("Увеличим что и сколько? (либо Стрелка вниз): ", things);
+                var result = ParseProductAndCount("Увеличим что и сколько? (Стрелка вниз, число): ", things);
 
                 string str = result.product;
                 int count = result.count;
@@ -171,15 +171,16 @@ class Program
             {
                 //WindowRestore();
                 if (storage.Count == 0)  //хол-к пуст           
-                    continue;                
+                    continue;
 
-                string str = InputStringWithHints("уменьшим что и сколько? (либо Стрелка вниз): ", storage.Keys.ToArray(), 20);               
-                int count = InputNumberInt("введи количество товара: ", 0);
+                var result = ParseProductAndCount("уменьшим что и сколько? (Стрелка вниз, число): ", storage.Keys.ToArray());
+                string str = result.product;
+                int count = result.count;
 
                 //стираем
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
-                Console.Write(new string(' ', Console.WindowWidth * 2));
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
 
                 //если человек написал 0, либо нет такого продукта, либо продукт закончился, то не вычитаем
                 if (count == 0 || !storage.ContainsKey(str) || storage[str] == 0)
@@ -582,14 +583,16 @@ class Program
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
 
+        string userStr = "";    // То, что пользователь набрал своими руками (до 3 букв)
         string productStr = ""; // Текстовая строка (финализируется при первой цифре)
         string countStr = "";   // Числовая строка (заполняется только цифрами)
-        string userStr = "";    // То, что пользователь набрал своими руками (до 3 букв)
-        int hintsIndex = -1;
+        
+        int hintsIndex = -1; //индекс подсказки
 
-        bool isHintActive = false; // Флаг: активна ли сейчас подсказка на экране
+        bool isArrow = false; // Флаг: нажата ли стрелка?
+        bool isDigitActive = false; // Флаг: Начали ли вводить цифры?
 
-        // ЦИКЛ: Сбор букв до нажатия Enter
+        // ЦИКЛ: Сбор строки до нажатия Enter
         while (true)
         {            
             ConsoleKeyInfo keyInfo = Console.ReadKey(true);
@@ -605,7 +608,7 @@ class Program
             else if (keyInfo.Key == ConsoleKey.DownArrow)
             {
                 // Стрелка работает, только если мы ещё НЕ начали вводить цифры
-                if (countStr.Length > 0 || hints == null || hints.Length == 0) continue;
+                if (isDigitActive || hints == null || hints.Length == 0) continue;
 
                 hintsIndex = FindBestHints(userStr, hints, hintsIndex);
 
@@ -613,85 +616,67 @@ class Program
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
                 productStr = hints[hintsIndex]; // Подставляем значение из массива
-                isHintActive = true;     // Включаем режим подсказки                
+                isArrow = true;     // стрелка нажата                
                 Console.Write(productStr); // Печатаем новую подсказку
             }
 
             // 3. нажат BACKSPACE — удаляем символ
             else if (keyInfo.Key == ConsoleKey.Backspace)
             {
-                // Стираем цифру, если числовая строка не пустая
-                if (countStr.Length > 0)
+                // Стираем цифру, если уже идёт числовая строка
+                if (isDigitActive)
                 {
-                    countStr = countStr.Substring(0, countStr.Length - 1);
-
-                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                    Console.Write(productStr + countStr);
-                }
-                // Если цифр нет, но на экране была подсказка целиком
-                else if (isHintActive)
-                {
-                    productStr = userStr; // Сбрасываем до родных букв пользователя
-                    isHintActive = false;
-
-                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                    Console.Write(productStr);
-                }
-                // Если цифр нет, подсказки нет, но пользователь стирает свои буквы ИЛИ разрушает текст подсказки, в которую уже вбивал и стёр цифры
-                else if (productStr.Length > 0)
-                {
-                    productStr = productStr.Substring(0, productStr.Length - 1);
-
-                    // Если мы всё ещё в пределах первых 3 букв ввода пользователя
-                    if (userStr.Length > 0 && productStr.Length <= userStr.Length)
+                    if (countStr.Length > 0)
                     {
-                        userStr = productStr;
-                    }
-
-                    // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
-                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                    Console.Write(productStr);
+                        countStr = countStr.Substring(0, countStr.Length - 1);
+                        ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                        Console.Write(productStr + countStr);
+                    }                        
                 }
+                // в противном случае - стираем подсказку и строчку пользователя
+                else
+                {
+                    isArrow = false;
+                    if (userStr.Length > 0)
+                    {
+                        userStr = userStr.Substring(0, userStr.Length - 1);                        
+                    }
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(userStr);
+                }                
             }
             
-            // 4. НАЖАТА ЦИФРА (0-9)
+            // 4. нажата ЦИФРА (0-9)
             else if (char.IsDigit(keyInfo.KeyChar))
             {
-                // Разрешаем вводить цифры, только если продукт уже хоть как-то выбран/набран
-                if (productStr.Length > 0)
+                // Разрешаем вводить цифры, если только что нажата стрелка
+                if (isArrow)
                 {
-                    isHintActive = false; // Текст зафиксирован, режим подсказки отключается
+                    isDigitActive = true; // Текст зафиксирован
                     countStr += keyInfo.KeyChar;
                     Console.Write(keyInfo.KeyChar);
                 }
             }
 
-            // 5. НАБРАНА ОБЫЧНАЯ БУКВА (Пробел запрещён)
+            // 5. набрана ОБЫЧНАЯ БУКВА (Пробел запрещён)
             else if (!char.IsControl(keyInfo.KeyChar) && keyInfo.KeyChar != ' ')
             {
-                // Буквы разрешены, только если:
-                // 1. Ещё НЕ нажата стрелка (подсказка)
-                // 2. Ещё НЕ введены цифры
-                // 3. Пользователь ввёл МЕНЬШЕ 3 букв
-                if (countStr.Length == 0 && !isHintActive && userStr.Length < 3)
-                {                    
-                    productStr += keyInfo.KeyChar;
-                    userStr = productStr; // Запоминаем, что это ввёл именно пользователь
+                // Буквы разрешены, только если: Ещё НЕ нажата стрелка, Ещё НЕ введены цифры, введено МЕНЬШЕ 3 букв                
+                if (!isArrow && !isDigitActive && userStr.Length < 3)
+                {
+                    userStr += keyInfo.KeyChar;                    
                     Console.Write(keyInfo.KeyChar);
                 }
             }
         }
 
-        // --- ФИНАЛЬНЫЙ ПРОСТЕЙШИЙ ПАРСИНГ --- ПОСЛЕ ENTER ---
+        // --- ФИНАЛЬНЫЙ ПРОСТЕЙШИЙ ПАРСИНГ ПОСЛЕ ENTER ---
 
         // Проверяем, совпадает ли финализированная текстовая строка с реальным продуктом из базы
-        string finalProduct = hints.FirstOrDefault(h => CleanForSearch(h) == CleanForSearch(productStr));
-
-        // Если пользователь стёр хотя бы одну букву из подсказки — finalProduct станет null, и метод вернёт пустоту
-        if (finalProduct == null)
-        {
-            return ("", 0);
-        }
+        string finalProduct = hints.FirstOrDefault(h => h == productStr);
+        
+        if (finalProduct == null)        
+            return ("", 0);        
 
         // Переводим нашу изолированную числовую строку в int
         int finalCount = 0;
