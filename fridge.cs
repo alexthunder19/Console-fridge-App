@@ -46,7 +46,7 @@ class Program
 
 
         // Создаём словарь storage
-        Dictionary<string, int> storage = new Dictionary<string, int>();
+        Dictionary<string, double> storage = new Dictionary<string, double>();
         string[] things = new string[] { "Хлеба кусок", "Пакет молока" ,"Сыра 100 г", "пиццы кусок",
             "Латяо", "Конжак" , "Конжак зел",
         "Колбаски", "Палка сырокопчёной", "Сигара",
@@ -82,14 +82,23 @@ class Program
             if (storage.Count < menuLines.Length)
             {
                 // Превращаем словарь в массив пар pairs[], чтобы обращаться по индексу (ведь foreach для пустого/короткого списка неудобен)
-                KeyValuePair<string, int>[] pairs = storage.ToArray();
+                KeyValuePair<string, double>[] pairs = storage.ToArray();
 
                 // Цикл всегда идёт столько раз, сколько в меню строк
                 for (int i = 0; i < menuLines.Length; i++)
                 {
                     // Если продукт под таким индексом есть — пишем его, иначе — просто пустой отступ
                     if (i < pairs.Length)
-                        Console.Write($"{pairs[i].Key + ":",-20}{pairs[i].Value,5} шт.");
+                    {
+                        if (pairs[i].Value % 1 == 0) 
+                        {
+                            Console.Write($"{pairs[i].Key + ":",-20}{pairs[i].Value,5} шт.");
+                        }
+                        else //если значение не целое, то 3 знака
+                        {
+                            Console.Write($"{pairs[i].Key + ":",-20}{pairs[i].Value,9:F3} г.");
+                        }
+                    }
                     else if (i == 0 && pairs.Length == 0)
                         Console.Write($"{"продуктов нет :(",-29}");
                     else
@@ -107,9 +116,16 @@ class Program
                 int i = 1;
                 int iMenu = (int)((storage.Count - (menuLines.Length - 2)) * 0.7);                
 
-                foreach (KeyValuePair<string, int> pair in storage)
+                foreach (KeyValuePair<string, double> pair in storage)
                 {
-                    Console.Write($"{pair.Key + ":",-20}{pair.Value,5} шт.");
+                    if (pair.Value % 1 == 0)
+                    {
+                        Console.Write($"{pair.Key + ":",-20}{pair.Value,5} шт.");
+                    }
+                    else //если значение не целое, то 3 знака
+                    {
+                        Console.Write($"{pair.Key + ":",-20}{pair.Value,9:F3} г.");
+                    }    
 
                     // Проверяем, попадает ли текущая строка в диапазон отрисовки меню
                     if (i >= iMenu && i < iMenu + menuLines.Length)
@@ -142,7 +158,7 @@ class Program
                 var result = ParseProductAndCount("Увеличим что и сколько? (Стрелка вниз, число): ", things);
 
                 string str = result.product;
-                int count = result.count;
+                double count = result.count;
 
                 //string str = InputStringWithHints("увеличим что и сколько? (либо Стрелка вниз): ", things, 20);
                 //int count = InputNumberInt("введи количество: ", 0, 10000);
@@ -175,7 +191,7 @@ class Program
 
                 var result = ParseProductAndCount("уменьшим что и сколько? (Стрелка вниз, число): ", storage.Keys.ToArray());
                 string str = result.product;
-                int count = result.count;
+                double count = result.count;
 
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
@@ -273,7 +289,7 @@ class Program
 
             else if (key == ConsoleKey.Escape) //******************выход**************************************************
             {
-                WindowRestore();
+                //WindowRestore();
                 Console.Write("      до скорого! ");
                 System.Threading.Thread.Sleep(500);
                 break;
@@ -465,7 +481,7 @@ class Program
                     //hintsIndex++;
                     //if (hintsIndex >= hints.Length) hintsIndex = 0;
 
-                    hintsIndex = FindBestHints(userStr, hints, hintsIndex);
+                    hintsIndex = FindBestHints(userStr, hints, hintsIndex, true);
 
                     // Стираем старый ввод с экрана
                     ClearUserErrors(startingCursorTop, inputMessage, "", 0);
@@ -578,7 +594,7 @@ class Program
         return str;
     }
 
-    static (string product, int count) ParseProductAndCount(string inputMessage, string[] hints)
+    static (string product, double count) ParseProductAndCount(string inputMessage, string[] hints)
     {
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
@@ -610,7 +626,23 @@ class Program
                 // Стрелка работает, только если мы ещё НЕ начали вводить цифры
                 if (isDigitActive || hints == null || hints.Length == 0) continue;
 
-                hintsIndex = FindBestHints(userStr, hints, hintsIndex);
+                hintsIndex = FindBestHints(userStr, hints, hintsIndex, true);
+
+                // Стираем старый ввод с экрана
+                ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+
+                productStr = hints[hintsIndex]; // Подставляем значение из массива
+                isArrow = true;     // стрелка нажата                
+                Console.Write(productStr); // Печатаем новую подсказку
+            }
+
+            // 2. нажата СТРЕЛКА ВВЕРХ — листаем подсказки в обр. сторону
+            else if (keyInfo.Key == ConsoleKey.UpArrow)
+            {
+                // Стрелка работает, только если мы ещё НЕ начали вводить цифры
+                if (isDigitActive || hints == null || hints.Length == 0) continue;
+
+                hintsIndex = FindBestHints(userStr, hints, hintsIndex, false);
 
                 // Стираем старый ввод с экрана
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
@@ -658,6 +690,20 @@ class Program
                 }
             }
 
+            // 4. нажата точка или запятая
+            else if (keyInfo.KeyChar == ',' || keyInfo.KeyChar == '.')
+            {
+                if (countStr.IndexOf(',') != -1) continue;
+
+                // Разрешаем вводить цифры, если только что нажата стрелка
+                if (isArrow)
+                {
+                    isDigitActive = true; // Текст зафиксирован
+                    countStr += ',';
+                    Console.Write(',');
+                }
+            }
+
             // 5. набрана ОБЫЧНАЯ БУКВА (Пробел запрещён)
             else if (!char.IsControl(keyInfo.KeyChar) && keyInfo.KeyChar != ' ')
             {
@@ -679,12 +725,14 @@ class Program
             return ("", 0);        
 
         // Переводим нашу изолированную числовую строку в int
-        int finalCount = 0;
+        double finalCount = 0;
         if (countStr.Length > 0)
         {
-            int.TryParse(countStr, out finalCount);
+            double.TryParse(countStr, out finalCount);
         }
 
+        //округляем до 3-х цифр после запятой
+        finalCount = Math.Round(finalCount, 3, MidpointRounding.AwayFromZero);
         return (finalProduct, finalCount);
     }
 
@@ -749,46 +797,69 @@ class Program
         // Оставляем только буквы и цифры, переводим в нижний регистр
         return new string(str.Where(char.IsLetterOrDigit).ToArray()).ToLower();
     }
-    static int FindBestHints(string str, string[] hints, int currentIndex)
+    static int FindBestHints(string str, string[] hints, int currentIndex, bool isForwardDirection)
     {
-        string strClean = CleanForSearch(str);
+        str = CleanForSearch(str);
 
-        // Если пользователь ничего не ввёл, просто двигаемся к следующему элементу массива по кругу (в случае превышения индекс = 0)
-        if (string.IsNullOrEmpty(strClean))
+        // 1. Если пользователь ничего не ввёл, просто двигаемся к следующему элементу массива по кругу (в случае превышения индекс = 0)
+        if (string.IsNullOrEmpty(str))
         {
-            return (currentIndex + 1) % hints.Length;
+            if (isForwardDirection)
+            {
+                return (currentIndex + 1) % hints.Length;
+            }
+            else
+            {
+                // Защита от ухода в минус при листании назад
+                return (currentIndex - 1 + hints.Length) % hints.Length;
+            }
         }
 
-        // Собираем ИНДЕКСЫ всех слов, которые начинаются на наш запрос
+        // 2. Собираем ИНДЕКСЫ всех слов, которые начинаются на наш запрос
         List<int> matchedIndices = new List<int>();
         for (int i = 0; i < hints.Length; i++)
         {
             string hintClean = CleanForSearch(hints[i]);
-            if (hintClean.StartsWith(strClean)) // Ищем совпадение С НАЧАЛА СЛОВА
+            if (hintClean.StartsWith(str)) // Ищем совпадение С НАЧАЛА СЛОВА
             {
                 matchedIndices.Add(i);
             }
         }
 
-        // Если нашли подходящие слова (например, для "ст" это будут индексы Стола и Стула)
+        // 3. Если нашли подходящие слова (например, для "ст" это будут индексы Стола и Стула)
         if (matchedIndices.Count > 0)
         {
-            // Ищем, есть ли среди найденных индексов тот, который идёт ПОСЛЕ текущего currentIndex
-            foreach (int index in matchedIndices)
+            // РЕЖИМ ВПЕРЁД (Стрелка вниз) — ищем первый индекс БОЛЬШЕ текущего
+            if (isForwardDirection)
             {
-                if (index > currentIndex)
+                foreach (int index in matchedIndices)
                 {
-                    return index; // Возвращаем первое подходящее слово впереди
+                    if (index > currentIndex) return index;
                 }
+                // Если мы уже стояли на самом последнем подходящем слове (или currentIndex был вообще в другом месте),
+                // то сбрасываемся на САМОЕ ПЕРВОЕ слово из нашего отфильтрованного списка (зацикливаем поиск)
+                return matchedIndices[0];
             }
-
-            // Если мы уже стояли на самом последнем подходящем слове (или currentIndex был вообще в другом месте),
-            // то сбрасываемся на САМОЕ ПЕРВОЕ слово из нашего отфильтрованного списка (зацикливаем поиск)
-            return matchedIndices[0];
+            // РЕЖИМ НАЗАД (Стрелка вверх) — ищем первый индекс МЕНЬШЕ текущего (идём с конца списка!)
+            else
+            {
+                for (int i = matchedIndices.Count - 1; i >= 0; i--)
+                {
+                    if (matchedIndices[i] < currentIndex) return matchedIndices[i];
+                }
+                return matchedIndices[matchedIndices.Count - 1]; // Сброс на конец списка подходящих
+            }           
         }
 
-        // Если совпадений вообще нет, просто листаем весь массив дальше по кругу (в случае превышения индекс = 0)
-        return (currentIndex + 1) % hints.Length;
+        // 4. Если совпадений вообще нет, просто листаем весь массив дальше по кругу (в случае превышения индекс = 0)
+        if (isForwardDirection)
+        {
+            return (currentIndex + 1) % hints.Length;
+        }
+        else
+        {
+            return (currentIndex - 1 + hints.Length) % hints.Length;
+        }
     }
 
 
