@@ -15,7 +15,7 @@ class Program
     private static readonly int _windowWidth = 100; //вместо 120
     private static readonly int _windowHeight = 30;
 
-    //чтобы заблокировать изменение размера окна
+    //чтобы заблокировать изменение размера окна:
     [DllImport("user32.dll")]
     private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
 
@@ -25,15 +25,23 @@ class Program
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetConsoleWindow();
 
+    //чтобы сразу переключить на Русский:
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);    
+
+    // Системные константы Windows
+    private static readonly uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+    private static readonly IntPtr _russianLayout = (IntPtr)0x04190419; // Код русской раскладки
+
 
     static void Main()
     {
         Console.WindowWidth = _windowWidth;
         Console.BufferWidth = _windowWidth;
         Console.WindowHeight = _windowHeight;
-        Console.BufferHeight = _windowHeight;
+        Console.BufferHeight = _windowHeight;        
 
-        // --- БЛОКИРОВКА РАЗМЕРА ОКНА ---
+        // --- Блокировка размера окна и переключение на русский ---
         IntPtr handle = GetConsoleWindow(); // Получаем идентификатор окна нашей консоли
         IntPtr sysMenu = GetSystemMenu(handle, false); // Получаем системное меню этого окна
 
@@ -41,17 +49,18 @@ class Program
         {
             DeleteMenu(sysMenu, 0xF000, 0x00000000); // 0xF000 — это команда SC_SIZE (изменение размера)
             DeleteMenu(sysMenu, 0xF030, 0x00000000); // 0xF030 — это команда SC_MAXIMIZE (развернуть на весь экран)
+            // Отправляем окну запрос на смену языка на русский
+            PostMessage(handle, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, _russianLayout);
         }
         // ---------------------------------
-
 
         // Создаём словарь storage
         Dictionary<string, double> storage = new Dictionary<string, double>();
         string[] things = new string[] { "Хлеба кусок", "Пакет молока" ,"Сыра 100 г", "пиццы кусок",
-            "Латяо", "Конжак" , "Конжак зел",
+            "Латяо" , "Конжак" , "Конжак зел",
         "Колбаски", "Палка сырокопчёной", "Сигара",
             "Мороженка", "Конфета","Печенинка розовая",
-            "Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г", 
+            "Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г",
             "Водка 100 г", "Пиво" };
 
         //заполняем Словарь        
@@ -62,8 +71,7 @@ class Program
 
         // Локальная функция для показа меню и содержимого
         void ShowStorage()
-        {
-            //WindowRestore();
+        {            
             Console.Clear(); // Очищаем экран
             Console.WriteLine("         продукты:          ");
 
@@ -92,17 +100,17 @@ class Program
                     {
                         if (pairs[i].Value % 1 == 0) 
                         {
-                            Console.Write($"{pairs[i].Key + ":",-20}{pairs[i].Value,5} шт.");
+                            Console.Write($"{pairs[i].Key + ":",-19}{pairs[i].Value,4} шт.");
                         }
                         else //если значение не целое, то 3 знака
                         {
-                            Console.Write($"{pairs[i].Key + ":",-20}{pairs[i].Value,9:F3} г.");
+                            Console.Write($"{pairs[i].Key + ":",-19}{pairs[i].Value,8:F3} г.");
                         }
                     }
                     else if (i == 0 && pairs.Length == 0)
-                        Console.Write($"{"продуктов нет :(",-29}");
+                        Console.Write($"{"продуктов нет :(",-27}");
                     else
-                        Console.Write($"{"",-29}");
+                        Console.Write($"{"",-27}");
 
                     // Справа всегда пристыковываем строчку меню
                     Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -120,11 +128,11 @@ class Program
                 {
                     if (pair.Value % 1 == 0)
                     {
-                        Console.Write($"{pair.Key + ":",-20}{pair.Value,5} шт.");
+                        Console.Write($"{pair.Key + ":",-19}{pair.Value,4} шт.");
                     }
                     else //если значение не целое, то 3 знака
                     {
-                        Console.Write($"{pair.Key + ":",-20}{pair.Value,9:F3} г.");
+                        Console.Write($"{pair.Key + ":",-19}{pair.Value,8:F3} г.");
                     }    
 
                     // Проверяем, попадает ли текущая строка в диапазон отрисовки меню
@@ -138,8 +146,7 @@ class Program
                     Console.WriteLine();
                     i++;
                 }
-            }
-
+            }            
             Console.WriteLine("--------------------------");
         }
 
@@ -152,17 +159,13 @@ class Program
             ConsoleKey key = Console.ReadKey(true).Key;
 
             if (key == ConsoleKey.Add || key == ConsoleKey.OemPlus) //******************увеличить **********************************************
-            {
-                //WindowRestore();
+            {                
                 //добавляем
                 var result = ParseProductAndCount("Увеличим что и сколько? (Стрелка вниз, число): ", things);
 
                 string str = result.product;
                 double count = result.count;
-
-                //string str = InputStringWithHints("увеличим что и сколько? (либо Стрелка вниз): ", things, 20);
-                //int count = InputNumberInt("введи количество: ", 0, 10000);
-
+                
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
                 Console.Write(new string(' ', Console.WindowWidth));
@@ -184,8 +187,7 @@ class Program
 
 
             else if (key == ConsoleKey.Subtract || key == ConsoleKey.OemMinus) //******************вычесть ******************************************
-            {
-                //WindowRestore();
+            {                
                 if (storage.Count == 0)  //хол-к пуст           
                     continue;
 
@@ -288,8 +290,7 @@ class Program
 
 
             else if (key == ConsoleKey.Escape) //******************выход**************************************************
-            {
-                //WindowRestore();
+            {                
                 Console.Write("      до скорого! ");
                 System.Threading.Thread.Sleep(500);
                 break;
@@ -636,7 +637,7 @@ class Program
                 Console.Write(productStr); // Печатаем новую подсказку
             }
 
-            // 2. нажата СТРЕЛКА ВВЕРХ — листаем подсказки в обр. сторону
+            // 3. нажата СТРЕЛКА ВВЕРХ — листаем подсказки в обр. сторону
             else if (keyInfo.Key == ConsoleKey.UpArrow)
             {
                 // Стрелка работает, только если мы ещё НЕ начали вводить цифры
@@ -652,7 +653,7 @@ class Program
                 Console.Write(productStr); // Печатаем новую подсказку
             }
 
-            // 3. нажат BACKSPACE — удаляем символ
+            // 4. нажат BACKSPACE — удаляем символ
             else if (keyInfo.Key == ConsoleKey.Backspace)
             {
                 // Стираем цифру, если уже идёт числовая строка
@@ -662,7 +663,9 @@ class Program
                     {
                         countStr = countStr.Substring(0, countStr.Length - 1);
                         ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                        Console.Write(productStr + countStr);
+
+                        // Добавляем пробел между продуктом и цифрами при перерисовке!
+                        Console.Write(productStr + " " + countStr);
                     }                        
                 }
                 // в противном случае - стираем подсказку и строчку пользователя
@@ -678,33 +681,43 @@ class Program
                 }                
             }
             
-            // 4. нажата ЦИФРА (0-9)
+            // 5. нажата ЦИФРА (0-9)
             else if (char.IsDigit(keyInfo.KeyChar))
             {
                 // Разрешаем вводить цифры, если только что нажата стрелка
-                if (isArrow)
+                if (isArrow && countStr.Length < 7)
                 {
-                    isDigitActive = true; // Текст зафиксирован
+                    // ЕСЛИ ЭТО САМАЯ ПЕРВАЯ ЦИФРА (или разделитель):
+                    if (!isDigitActive)
+                    {
+                        isDigitActive = true; // Текст зафиксирован
+                        Console.Write(" ");   // Рисуем ТОЛЬКО НА ЭКРАНЕ чисто визуальный пробел!
+                    }                    
                     countStr += keyInfo.KeyChar;
                     Console.Write(keyInfo.KeyChar);
                 }
             }
 
-            // 4. нажата точка или запятая
+            // 6. нажата точка или запятая
             else if (keyInfo.KeyChar == ',' || keyInfo.KeyChar == '.')
             {
                 if (countStr.IndexOf(',') != -1) continue;
 
                 // Разрешаем вводить цифры, если только что нажата стрелка
-                if (isArrow)
+                if (isArrow && countStr.Length < 7)
                 {
-                    isDigitActive = true; // Текст зафиксирован
+                    // ЕСЛИ ЭТО САМЫЙ ПЕРВЫЙ СИМВОЛ ЧИСЛА (вместо цифры нажали точку/запятую):
+                    if (!isDigitActive)
+                    {
+                        isDigitActive = true; // Текст зафиксирован
+                        Console.Write(" ");   // Рисуем ТОЛЬКО НА ЭКРАНЕ чисто визуальный пробел!
+                    }                    
                     countStr += ',';
                     Console.Write(',');
                 }
             }
 
-            // 5. набрана ОБЫЧНАЯ БУКВА (Пробел запрещён)
+            // 7. набрана ОБЫЧНАЯ БУКВА (Пробел запрещён)
             else if (!char.IsControl(keyInfo.KeyChar) && keyInfo.KeyChar != ' ')
             {
                 // Буквы разрешены, только если: Ещё НЕ нажата стрелка, Ещё НЕ введены цифры, введено МЕНЬШЕ 3 букв                
@@ -728,8 +741,12 @@ class Program
         double finalCount = 0;
         if (countStr.Length > 0)
         {
-            double.TryParse(countStr, out finalCount);
+            // Заставляем систему парсить строку строго по правилам русской локали (с запятой)
+            double.TryParse(countStr, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out finalCount);
         }
+        if (finalCount > 400)
+            finalCount = 0;
 
         //округляем до 3-х цифр после запятой
         finalCount = Math.Round(finalCount, 3, MidpointRounding.AwayFromZero);
