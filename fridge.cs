@@ -12,7 +12,7 @@ class Program
     private static readonly Random _rnd = new Random();
 
     //нужны для перерисовки окна, если его уменьшат    
-    private static readonly int _windowWidth = 100; //вместо 120
+    private static readonly int _windowWidth = 80; //вместо 120
     private static readonly int _windowHeight = 30;
 
     //чтобы заблокировать изменение размера окна:
@@ -223,30 +223,47 @@ class Program
 
             if (key == ConsoleKey.P) //******************добавить позицию**********************************************
             {
-
-
                 //добавляем
-                string str = InputStringWithHints("введи наименование для добавления: ", things, 19);
-                int count = InputNumberInt("введи количество товара: ", 0);
-
-                //стираем
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
-                Console.Write(new string(' ', Console.WindowWidth * 2));
-                Console.SetCursorPosition(0, Console.CursorTop - 2);
-
-
-                if (!storage.ContainsKey(str))
+                string str = InputString("введи новую позицию: ", 18);
+                if (str == "") //если ничё не ввёл - выходим
                 {
-                    storage[str] = count;  //добавим в Словарь
+                    //стираем
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    //выходим
+                    Console.Write("    не добавлено...");
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    System.Threading.Thread.Sleep(0);
+                    System.Threading.Thread.Sleep(1300);
+                    continue;
+
                 }
-                else
-                {                    
-                    Console.Write($"    \"{str}\" уже есть на складе!");
+                // пробежимся по всему хол-ку, может там уже есть такое название (пусть даже в другом регистре)
+                bool isContains = false;
+                foreach (KeyValuePair<string, double> pair in storage)
+                {
+                    if (pair.Key.ToLower().Trim() == str.ToLower().Trim())
+                    {
+                        isContains = true;
+                        break;
+                    }
+                }
+
+                if (isContains)
+                {
+                    //стираем
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    //выходим
+                    Console.Write($"    \"{str.ToLower()}\" уже есть на складе!");
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    System.Threading.Thread.Sleep(1100);
+                    System.Threading.Thread.Sleep(1200);
+                    continue;
                 }
+
+                double count = InputNumberDouble("введи количество продукта: ");               
+                storage[str] = count;  //добавим в Словарь                
             }
 
 
@@ -264,7 +281,7 @@ class Program
                     continue;
                 }
 
-                string str = InputStringWithHints("что удалить? (либо Стрелка вниз): ", storage.Keys.ToArray(), 20);
+                string str = InputStringWithHints("что удалить? (либо Стрелка вниз): ", storage.Keys.ToArray(), 18);
 
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
@@ -298,155 +315,143 @@ class Program
         }
     }
 
-    static int InputNumberInt(string inputMessage, int min = -2147483648, int max = 2147483646)
+    static double InputNumberDouble(string inputMessage, double max = 400)
     {
-        int number;
+        int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
+        string str = "";
 
+        // ЦИКЛ: Сбор букв до нажатия Enter
         while (true)
         {
-            WindowRestore();
-            int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
-            string str = Console.ReadLine();
+            var keyInfo = Console.ReadKey(true);
 
-            // проверка на null (Ctrl+Z)
-            if (str == null)
+            // нажат ENTER — завершаем ввод
+            if (keyInfo.Key == ConsoleKey.Enter)
             {
-                ClearUserErrors(startingCursorTop, inputMessage, "   чё за х...? ", 1700);
-                continue; // Возврат в начало цикла для нового ввода
-            }
-
-            //если чистый enter, то Рандом
-            if (str.Length == 0)
-            {
-                if (max == int.MaxValue)
-                    max = int.MaxValue - 1;  //чтобы не переполнить рандом
-                number = _rnd.Next(min, max + 1);
-                ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                Console.Write(number + "\n");
+                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
                 break;
             }
 
-            // Если одни пробелы       
-            if (string.IsNullOrWhiteSpace(str))
+            // нажат BACKSPACE — удаляем символ
+            else if (keyInfo.Key == ConsoleKey.Backspace)
             {
-                ClearUserErrors(startingCursorTop, inputMessage, "   -введи чё-нибудь, или нажми Enter-");
-                continue; // Возврат в начало цикла для нового ввода
+                if (str.Length > 0)
+                {
+                    // Стираем один символ                    
+                    str = str.Substring(0, str.Length - 1);
+
+                    // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(str);
+                }
             }
 
-            //Чистим строку            
-            str = str.Replace(" ", "");
-
-            // Узнаём, какой разделитель используется в текущей Windows (точка или запятая)
-            string currentSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-            if (currentSeparator == ",")
-                str = str.Replace(".", ",");
-            else if (currentSeparator == ".")
-                str = str.Replace(",", ".");
-
-            // Проверка на то, что введено вообще число
-            if (!double.TryParse(str, out double parsedDouble))
+            // нажата ЦИФРА (0-9)
+            else if (char.IsDigit(keyInfo.KeyChar))
             {
-                ClearUserErrors(startingCursorTop, inputMessage, $"     -Это не число!-");
-                continue; // Возврат в начало цикла для нового ввода
+                if (str.Length < 7)
+                {
+                    str += keyInfo.KeyChar;
+                    Console.Write(keyInfo.KeyChar);
+                }
             }
 
-            if (parsedDouble > int.MaxValue || parsedDouble < int.MinValue)
+            // нажата точка или запятая
+            else if (keyInfo.KeyChar == ',' || keyInfo.KeyChar == '.')
             {
-                ClearUserErrors(startingCursorTop, inputMessage, $"    Сдурел? Чё такое длинное? Введи нормальное");
-                continue; // Возврат в начало цикла для нового ввода
+                if (str.IndexOf(',') != -1) continue;
+                
+                if (str.Length < 7)
+                {                    
+                    str += ',';
+                    Console.Write(',');
+                }
             }
-
-            // Проверка на то, что введено именно целое число
-            if (parsedDouble % 1 != 0)
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, $"    -Неeт! Введи ЦЕЛОЕ число-");
-                continue; // Возврат в начало цикла для нового ввода
-            }
-            number = (int)parsedDouble;
-
-            // Проверка на попадание в диапазон
-            if (number < min || number > max)
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   Число должно быть в пределах: ({min}...{max})", 2300);
-                continue; // Возврат в начало цикла для нового ввода
-            }
-
-            ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-            Console.Write(number + "\n");
-            break;
         }
 
-        return number;
+        // --- парсинг после ENTER ---
+
+        // Переводим нашу числовую строку в double
+        double num = 1;
+        if (str.Length > 0)
+        {
+            // Заставляем систему парсить строку строго по правилам русской локали (с запятой)
+            double.TryParse(str, System.Globalization.NumberStyles.Any,
+                            System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out num);
+        }
+        if (num > max)
+            num = 1;
+
+        //округляем до 3-х цифр после запятой
+        num = Math.Round(num, 3, MidpointRounding.AwayFromZero);
+        return num;
     }
-    static string InputString(string inputMessage, string[] random, int max = 60)
-    {
-        string str;
+    static string InputString(string inputMessage, int max)
+    {        
+        int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
+        string str = "";
 
         while (true)
         {
-            WindowRestore();
-            int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
-            str = Console.ReadLine();
+            var keyInfo = Console.ReadKey(true);
 
-            // проверка на null (Ctrl+Z)
-            if (str == null)
+            // нажат ENTER — завершаем ввод
+            if (keyInfo.Key == ConsoleKey.Enter)
             {
-                ClearUserErrors(startingCursorTop, inputMessage, "   чё за х...? ", 1700);
-                continue; // Возврат в начало цикла для нового ввода
-            }
+                // Если одни пробелы       
+                if (string.IsNullOrWhiteSpace(str))
+                {
+                    str = "";
+                    break;
+                }
 
-            //если чистый enter, то Рандом
-            if (str.Length == 0)
-            {
-                // если массив забыли заполнить или он пустой
-                if (random == null || random.Length == 0)
+                //Чистим строку
+                str = str.Trim();
+                //разбиваем строку по пробелам, игнорируя пустые элементы
+                string[] words = str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                //сшиваем слова обратно, разделяя их ОДНИМ пробелом
+                str = string.Join(" ", words);
+
+                if (!str.Any(char.IsLetter))
                 {
-                    str = $"Объект {_rnd.Next(1, 1000)}";
+                    ClearUserErrors(startingCursorTop, inputMessage, $"  -буквы тоже должны быть в названии!-");
+                    str = "";
+                    continue; // Возврат в начало цикла для нового ввода
                 }
-                else
-                {
-                    int number = _rnd.Next(0, random.Length);
-                    str = random[number];
-                }
+
+                // Если буквы есть — всё отлично
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
                 Console.Write(str + "\n");
-                break;
-            }
+                break; // Успешный выход из цикла, метод вернёт готовый str
+            }                
 
-            // Если одни пробелы       
-            if (string.IsNullOrWhiteSpace(str))
+            // нажат BACKSPACE — удаляем символ
+            else if (keyInfo.Key == ConsoleKey.Backspace)
             {
-                ClearUserErrors(startingCursorTop, inputMessage, "   -введи чё-нибудь, или нажми Enter-");
-                continue; // Возврат в начало цикла для нового ввода
+                if (str.Length > 0)
+                {
+                    // Стираем один символ                                               
+                    str = str.Substring(0, str.Length - 1);
+
+                    // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(str);
+                }
             }
 
-            //Чистим строку
-            str = str.Trim();
-            //только первая буква заглавная
-            str = str.ToLower();
-            str = str.Substring(0, 1).ToUpper() + str.Substring(1);
-            //разбиваем строку по пробелам, игнорируя пустые элементы
-            string[] words = str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            //сшиваем слова обратно, разделяя их ОДНИМ пробелом
-            str = string.Join(" ", words);
-
-            if (str.Length > max)
+            // нажата обычная буква или знак — печатаем
+            else if (!char.IsControl(keyInfo.KeyChar))
             {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -название не больше {max} символов!-");
-                continue; // Возврат в начало цикла для нового ввода
+                if (str.Length < max)
+                {
+                    str += keyInfo.KeyChar;
+                    Console.Write(keyInfo.KeyChar);
+                }
             }
-            if (!str.Any(char.IsLetter))
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -буквы тоже должны быть в названии!-");
-                continue; // Возврат в начало цикла для нового ввода
-            }
-
-            ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-            Console.Write(str + "\n");
-            break;
         }
+
         return str;
     }
     static string InputStringWithHints(string inputMessage, string[] hints, int max = 60)
@@ -462,8 +467,7 @@ class Program
         {
             // ЦИКЛ 1: Сбор букв до нажатия Enter
             while (true)
-            {
-                WindowRestore();
+            {                
                 var keyInfo = Console.ReadKey(true);
 
                 // нажат ENTER — завершаем ввод
@@ -483,6 +487,27 @@ class Program
                     //if (hintsIndex >= hints.Length) hintsIndex = 0;
 
                     hintsIndex = FindBestHints(userStr, hints, hintsIndex, true);
+
+                    // Стираем старый ввод с экрана
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+
+                    // Подставляем значение из массива
+                    str = hints[hintsIndex];
+
+                    // Печатаем новую подсказку
+                    Console.Write(str);
+                }
+
+                // нажата СТРЕЛКА ВВЕРХ — листаем подсказки назад
+                else if (keyInfo.Key == ConsoleKey.UpArrow)
+                {
+                    if (hints == null || hints.Length == 0) continue;
+
+                    // Листаем индекс по кругу
+                    //hintsIndex++;
+                    //if (hintsIndex >= hints.Length) hintsIndex = 0;
+
+                    hintsIndex = FindBestHints(userStr, hints, hintsIndex, false);
 
                     // Стираем старый ввод с экрана
                     ClearUserErrors(startingCursorTop, inputMessage, "", 0);
@@ -536,39 +561,13 @@ class Program
                 }
             }
 
-            //ЦИКЛ 2: Валидация строки
-
-            //если чистый enter, то Рандом
-            if (str.Length == 0)
-            {
-                // если массив забыли заполнить или он пустой
-                if (hints == null || hints.Length == 0)
-                {
-                    str = $"Объект {_rnd.Next(1, 1000)}";
-                }
-                else
-                {
-                    int number = _rnd.Next(0, hints.Length);
-                    str = hints[number];
-                }
-                ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-                Console.Write(str + "\n");
-                break;
-            }
-
+            //ЦИКЛ 2: Валидация строки:
             // Если одни пробелы       
-            if (string.IsNullOrWhiteSpace(str))
-            {
-                ClearUserErrors(startingCursorTop, inputMessage, "   введи чё-нибудь, или нажми Enter или Стрелку вниз");
-                str = "";
-                continue; // Возврат в начало цикла для нового ввода
-            }
+            if (string.IsNullOrWhiteSpace(str))            
+                break;            
 
             //Чистим строку
-            str = str.Trim();
-            //только первая буква заглавная
-            //str = str.ToLower();
-            //str = str.Substring(0, 1).ToUpper() + str.Substring(1);
+            str = str.Trim();            
             //разбиваем строку по пробелам, игнорируя пустые элементы
             string[] words = str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             //сшиваем слова обратно, разделяя их ОДНИМ пробелом
@@ -576,13 +575,13 @@ class Program
 
             if (str.Length > max)
             {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -название не больше {max} символов!-");
+                ClearUserErrors(startingCursorTop, inputMessage, $"  -название не больше {max} символов!-");
                 str = "";
                 continue; // Возврат в начало цикла для нового ввода
             }
             if (!str.Any(char.IsLetter))
             {
-                ClearUserErrors(startingCursorTop, inputMessage, $"   -буквы тоже должны быть в названии!-");
+                ClearUserErrors(startingCursorTop, inputMessage, $"  -буквы тоже должны быть в названии!-");
                 str = "";
                 continue; // Возврат в начало цикла для нового ввода
             }
@@ -617,8 +616,11 @@ class Program
             // 1. нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
             {
-                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
-                break;
+                if (isArrow)
+                {
+                    Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
+                    break;
+                }                
             }
 
             // 2. нажата СТРЕЛКА ВНИЗ — листаем подсказки
@@ -735,9 +737,9 @@ class Program
         string finalProduct = hints.FirstOrDefault(h => h == productStr);
         
         if (finalProduct == null)        
-            return ("", 0);        
+            return ("", 0);
 
-        // Переводим нашу изолированную числовую строку в int
+        // Переводим нашу изолированную числовую строку в double
         double finalCount = 0;
         if (countStr.Length > 0)
         {
@@ -756,8 +758,6 @@ class Program
     // функция для очистки ВСЕХ неверных данных введённых пользователем и вывода временного сообщения об ошибке
     static void ClearUserErrors(int startingCursorTop, string inputMessage, string errorMessage = "   -Неверно! Читай внимательнее!-", int pauseTime = 1900)
     {
-        WindowRestore();
-
         // Проходим снизу вверх от текущей позиции до начальной
         for (int i = Console.CursorTop; i >= startingCursorTop; i--)
         {
