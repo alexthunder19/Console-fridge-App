@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.IO;
 
 class Program
 {
@@ -31,7 +32,7 @@ class Program
 
     // Системные константы Windows
     private static readonly uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
-    private static readonly IntPtr _russianLayout = (IntPtr)0x04190419; // Код русской раскладки
+    private static readonly IntPtr _russianLayout = (IntPtr)0x04190419; // Код русской раскладки  
 
 
     static void Main()
@@ -52,16 +53,16 @@ class Program
             // Отправляем окну запрос на смену языка на русский
             PostMessage(handle, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, _russianLayout);
         }
-        // ---------------------------------
+        // ---------------------------------       
 
         // Создаём словарь storage
-        Dictionary<string, double> storage = new Dictionary<string, double>();
-        string[] things = new string[] { "Хлеба кусок" , "Пакет молока", "Сыра 100 г",  "пиццы кусок",
-            "Латяо" , "Конжак" , "Конжак зел",
-        "Колбаски", "Палка сырокопчёной", "Сигара",
-            "Мороженка", "Конфета","Печенинка розовая",
-            "Каша овсяная", "Каша 5 злаков", "Макароны", "Лапша б/п", "Фасоль", "Гречка 100 г",
-            "Водка 100 г", "Пиво" };
+        SortedDictionary<string, double> storage = new SortedDictionary<string, double>();
+        string[] things = new string[] { "10|Хлеба кусок" , "12|Пакет молока", "14|Сыра 100 г",  "14|пиццы кусок",
+            "25|Латяо" , "25|Конжак" , "25|Конжак зел",
+        "35|Колбаски", "35|Палка сырокопчёной", "35|Сигара",
+            "45|Мороженка", "45|Конфета","45|Печенинка розовая",
+            "55|Каша овсяная", "55|Каша 5 злаков", "55|Макароны", "55|Лапша б/п", "55|Фасоль", "55|Гречка 100 г",
+            "65|Водка 100 г", "65|Пиво" };
 
         //заполняем Словарь        
         for (int i = 0; i < things.Length; i++)
@@ -69,9 +70,61 @@ class Program
             storage.Add(things[i], 1);            
         }
 
+
+        // ---------------------------------
+
+        // Находим путь к стандартной папке "Документы" текущего пользователя Windows
+        string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        // Объединяем путь с именем нашего файла
+        string filePath = Path.Combine(docPath, "fridge_storage.txt");
+
+        if (!File.Exists(filePath))
+        {
+            // Сразу сохраняем этот стартовый список в файл, чтобы он там появился
+            SaveStorageToFile(filePath, storage);
+        }
+        else
+        {
+            // ФАЙЛ ЕСТЬ: Читаем его построчно
+            string[] lines = File.ReadAllLines(filePath);
+            foreach (string line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                // Каждая строка в файле имеет формат: Группа|Название|Количество
+                // Например: 1|Пакет молока|14
+                string[] parts = line.Split('|');
+                if (parts.Length >= 3)
+                {
+                    string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
+
+                    // Парсим количество строго по правилам русской локали (с запятой)
+                    double.TryParse(parts[2], System.Globalization.NumberStyles.Any,
+                                    System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
+
+                    storage[key] = count;
+                }
+            }
+        }
+
+
         // Локальная функция для показа меню и содержимого
         void ShowStorage()
-        {            
+        {
+            ConsoleColor GetGroupColor(int groupNumber)
+            {
+                switch (groupNumber)
+                {
+                    case 1: return ConsoleColor.DarkYellow;
+                    case 2: return ConsoleColor.Green;
+                    case 3: return ConsoleColor.Red;
+                    case 4: return ConsoleColor.Cyan;
+                    case 5: return ConsoleColor.Yellow;
+                    case 6: return ConsoleColor.Blue;
+                    default: return ConsoleColor.Gray;
+                }                                               
+            }
+
             Console.Clear(); // Очищаем экран
             Console.WriteLine("         продукты:          ");
 
@@ -98,14 +151,32 @@ class Program
                     // Если продукт под таким индексом есть — пишем его, иначе — просто пустой отступ
                     if (i < pairs.Length)
                     {
+                        int groupNum = 0; // По умолчанию - цвет нейтральный
+                        string productName = pairs[i].Key; // По умолчанию имя - это весь ключ
+
+                        if (productName.Contains("|"))
+                        {
+                            string[] keyParts = productName.Split('|');
+
+                            //первый символ до '|' - это номер группы
+                            if (keyParts[0] != "" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
+                                groupNum = parsedValue;
+
+                            productName = keyParts[1];  //после '|' - это имя
+                        }                        
+
+                        // Включаем цвет конкретно для этой группы
+                        Console.ForegroundColor = GetGroupColor(groupNum);
+
                         if (pairs[i].Value % 1 == 0) 
                         {
-                            Console.Write($"{pairs[i].Key + ":",-19}{pairs[i].Value,4} шт.");
+                            Console.Write($"{productName + ":",-19}{pairs[i].Value,4} шт.");
                         }
                         else //если значение не целое, то 3 знака
                         {
-                            Console.Write($"{pairs[i].Key + ":",-19}{pairs[i].Value,8:F3} г.");
+                            Console.Write($"{productName + ":",-19}{pairs[i].Value,8:F3} г.");
                         }
+                        Console.ResetColor(); // Сбрасываем цвет, чтобы текст меню справа не окрасился!
                     }
                     else if (i == 0 && pairs.Length == 0)
                         Console.Write($"{"продуктов нет :(",-27}");
@@ -126,14 +197,33 @@ class Program
 
                 foreach (KeyValuePair<string, double> pair in storage)
                 {
+
+                    int groupNum = 0; // По умолчанию - цвет нейтральный
+                    string productName = pair.Key; // По умолчанию имя - это весь ключ
+
+                    if (productName.Contains("|"))
+                    {
+                        string[] keyParts = productName.Split('|');
+
+                        //первый символ до '|' - это номер группы
+                        if (keyParts[0]!="" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
+                            groupNum = parsedValue;
+                        
+                        productName = keyParts[1];  //после '|' - это имя
+                    }                  
+
+                    // Включаем цвет группы для текущей строки продукта
+                    Console.ForegroundColor = GetGroupColor(groupNum);
+
                     if (pair.Value % 1 == 0)
                     {
-                        Console.Write($"{pair.Key + ":",-19}{pair.Value,4} шт.");
+                        Console.Write($"{productName + ":",-19}{pair.Value,4} шт.");
                     }
                     else //если значение не целое, то 3 знака
                     {
-                        Console.Write($"{pair.Key + ":",-19}{pair.Value,8:F3} г.");
-                    }    
+                        Console.Write($"{productName + ":",-19}{pair.Value,8:F3} г.");
+                    }
+                    Console.ResetColor(); // Сразу сбрасываем, чтобы меню вывелось серым!
 
                     // Проверяем, попадает ли текущая строка в диапазон отрисовки меню
                     if (i >= iMenu && i < iMenu + menuLines.Length)
@@ -310,7 +400,10 @@ class Program
 
 
             else if (key == ConsoleKey.Escape) //******************выход**************************************************
-            {                
+            {
+                // ПЕРЕД ВЫХОДОМ сохраняем все изменения в файл в Документы!
+                SaveStorageToFile(filePath, storage);
+
                 Console.Write("      до скорого! ");
                 System.Threading.Thread.Sleep(500);
                 break;
@@ -419,7 +512,7 @@ class Program
 
                 if (!str.Any(char.IsLetter))
                 {
-                    ClearUserErrors(startingCursorTop, inputMessage, $"  -буквы тоже должны быть в названии!-");
+                    ClearUserErrors(startingCursorTop, inputMessage, $"  -а буквы где?!-");
                     str = "";
                     continue; // Возврат в начало цикла для нового ввода
                 }
@@ -846,6 +939,31 @@ class Program
         else
         {
             return (currentIndex - 1 + hints.Length) % hints.Length;
+        }
+    }
+    static void SaveStorageToFile(string filePath, SortedDictionary<string, double> storage)
+    {
+        try
+        {
+            List<string> linesToWrite = new List<string>();
+
+            foreach (KeyValuePair<string, double> pair in storage)
+            {
+                // Наш pair.Key уже содержит в себе "1|Пакет молока"
+                // Нам осталось просто пристыковать через палочку количество (Value)
+                // Принудительно переводим double в строку по правилам русской локали (с запятой)
+                string countStr = pair.Value.ToString(System.Globalization.CultureInfo.GetCultureInfo("ru-RU"));
+
+                string fileLine = $"{pair.Key}|{countStr}"; // Получится "1|Пакет молока|1"
+                linesToWrite.Add(fileLine);
+            }
+
+            // Записываем все строки в файл (если файл существовал, он полностью перезапишется свежими данными)
+            File.WriteAllLines(filePath, linesToWrite);
+        }
+        catch
+        {
+            // Защита: если файл заблокирован другой программой, не падаем
         }
     }
 
