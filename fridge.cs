@@ -1,17 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using System.IO;
 
 class Program
 {
-    // Создаем ОДИН РАЗ на уровне класса. 
-    // static — чтобы его видели статичные функции (как Main).
-    // readonly — защита, чтобы случайно не стереть его в коде.
-    private static readonly Random _rnd = new Random();
-
     //нужны для перерисовки окна, если его уменьшат    
     private static readonly int _windowWidth = 80; //вместо 120
     private static readonly int _windowHeight = 30;
@@ -55,7 +49,7 @@ class Program
         }
         // ---------------------------------       
 
-        // Создаём словарь storage
+        // Создаём Sorted словарь storage
         SortedDictionary<string, double> storage = new SortedDictionary<string, double>();
         string[] things = new string[] { "10|Хлеба кусок" , "12|Пакет молока", "14|Сыра 100 г",  "14|пиццы кусок",
             "25|Латяо" , "25|Конжак" , "25|Конжак зел",
@@ -64,11 +58,7 @@ class Program
             "55|Каша овсяная", "55|Каша 5 злаков", "55|Макароны", "55|Лапша б/п", "55|Фасоль", "55|Гречка 100 г",
             "65|Водка 100 г", "65|Пиво" };
 
-        //заполняем Словарь        
-        for (int i = 0; i < things.Length; i++)
-        {
-            storage.Add(things[i], 1);            
-        }
+        
 
 
         // ---------------------------------
@@ -80,6 +70,12 @@ class Program
 
         if (!File.Exists(filePath))
         {
+            //заполняем Словарь        
+            for (int i = 0; i < things.Length; i++)
+            {
+                storage.Add(things[i], 1);
+            }
+
             // Сразу сохраняем этот стартовый список в файл, чтобы он там появился
             SaveStorageToFile(filePath, storage);
         }
@@ -94,15 +90,36 @@ class Program
                 // Каждая строка в файле имеет формат: Группа|Название|Количество
                 // Например: 1|Пакет молока|14
                 string[] parts = line.Split('|');
-                if (parts.Length >= 3)
+                if (parts.Length >= 3) //если '|' две
                 {
                     string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
 
+                    
                     // Парсим количество строго по правилам русской локали (с запятой)
                     double.TryParse(parts[2], System.Globalization.NumberStyles.Any,
                                     System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
 
                     storage[key] = count;
+                }
+                else if (parts.Length == 2) //если '|' только одна
+                {
+                    if (line.IndexOf('|') < line.Length / 2) //и если '|' в начале строчки
+                    {
+                        string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
+                        storage[key] = 0;
+                    }
+                    else    //и если '|' в конце строчки
+                    {
+                        string key = $"8|{parts[0]}"; // Собираем обратно ключ "8|Пакет молока"
+                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any,
+                                    System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
+                        storage[key] = count;
+                    }
+                }                
+                else  //если '|' вообще нет
+                {
+                    string key = $"8|{line}"; // Собираем обратно ключ "0|Пакет молока"
+                    storage[key] = 0;
                 }
             }
         }
@@ -128,15 +145,16 @@ class Program
             Console.Clear(); // Очищаем экран
             Console.WriteLine("         продукты:          ");
 
-            // Массив строк меню — компактно и удобно
+            // Массив строк меню — компактно и удобно          
             string[] menuLines = new string[]
             {
-        "            +    Увеличить",
-        "            -    Уменьшить",
-        "            P    добавить позицию",
-        "            N    удалить позицию",
-        "            O    открыть файл",
-        "            Esc  Выйти из программы"
+                    "+    Увеличить",
+                    "-    Уменьшить",
+                    "Ent  Приравнять",
+                    "P    добавить позицию",
+                    "N    удалить позицию",
+                    "O    открыть файл",
+                    "Esc  Выйти из программы"
             };
 
             // СИТУАЦИЯ 1: Продуктов меньше, чем пунктов меню, либо вообще продуктов нет — выводим меню фиксированно сверху справа
@@ -152,36 +170,35 @@ class Program
                     if (i < pairs.Length)
                     {
                         int groupNum = 0; // По умолчанию - цвет нейтральный
-                        string productName = pairs[i].Key; // По умолчанию имя - это весь ключ
+                        string[] keyParts = pairs[i].Key.Split('|');
 
-                        if (productName.Contains("|"))
-                        {
-                            string[] keyParts = productName.Split('|');
+                        //первый символ до '|' - это номер группы
+                        if (keyParts[0] != "" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
+                            groupNum = parsedValue;
+                        string productName = keyParts[1];  //после '|' - это имя
 
-                            //первый символ до '|' - это номер группы
-                            if (keyParts[0] != "" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
-                                groupNum = parsedValue;
-
-                            productName = keyParts[1];  //после '|' - это имя
-                        }                        
+                        // Включаем цвет группы для текущей строки продукта
+                        Console.ForegroundColor = GetGroupColor(groupNum);
 
                         // Включаем цвет конкретно для этой группы
                         Console.ForegroundColor = GetGroupColor(groupNum);
 
                         if (pairs[i].Value % 1 == 0) 
                         {
-                            Console.Write($"{productName + ":",-19}{pairs[i].Value,4} шт.");
+                            Console.Write($"{productName + ":",-19}{pairs[i].Value,4} шт.   ");                            
                         }
                         else //если значение не целое, то 3 знака
                         {
-                            Console.Write($"{productName + ":",-19}{pairs[i].Value,8:F3} г.");
+                            Console.Write($"{productName + ":",-19}{pairs[i].Value,8:F3} г.");                            
                         }
+
+                        Console.Write(new string(' ', 9)); // Дописываем пробелы до начала меню
                         Console.ResetColor(); // Сбрасываем цвет, чтобы текст меню справа не окрасился!
                     }
                     else if (i == 0 && pairs.Length == 0)
-                        Console.Write($"{"продуктов нет :(",-27}");
+                        Console.Write($"{"продуктов нет :(",-39}");
                     else
-                        Console.Write($"{"",-27}");
+                        Console.Write($"{"",-39}");
 
                     // Справа всегда пристыковываем строчку меню
                     Console.ForegroundColor = ConsoleColor.DarkGray;
@@ -193,36 +210,31 @@ class Program
             else
             {
                 int i = 1;
-                int iMenu = (int)((storage.Count - (menuLines.Length - 2)) * 0.7);                
+                int iMenu = (int)((storage.Count - (menuLines.Length - 2)) * 0.5);   //= (int)((storage.Count - (menuLines.Length - 2)) * 0.7);              
 
                 foreach (KeyValuePair<string, double> pair in storage)
                 {
-
                     int groupNum = 0; // По умолчанию - цвет нейтральный
-                    string productName = pair.Key; // По умолчанию имя - это весь ключ
+                    string[] keyParts = pair.Key.Split('|');
 
-                    if (productName.Contains("|"))
-                    {
-                        string[] keyParts = productName.Split('|');
-
-                        //первый символ до '|' - это номер группы
-                        if (keyParts[0]!="" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
-                            groupNum = parsedValue;
-                        
-                        productName = keyParts[1];  //после '|' - это имя
-                    }                  
+                    //первый символ до '|' - это номер группы
+                    if (keyParts[0] != "" && int.TryParse(keyParts[0].Substring(0, 1), out int parsedValue))
+                        groupNum = parsedValue;
+                    string productName = keyParts[1];  //после '|' - это имя
 
                     // Включаем цвет группы для текущей строки продукта
                     Console.ForegroundColor = GetGroupColor(groupNum);
 
                     if (pair.Value % 1 == 0)
                     {
-                        Console.Write($"{productName + ":",-19}{pair.Value,4} шт.");
+                        Console.Write($"{productName + ":",-19}{pair.Value,4} шт.   ");                        
                     }
                     else //если значение не целое, то 3 знака
                     {
-                        Console.Write($"{productName + ":",-19}{pair.Value,8:F3} г.");
+                        Console.Write($"{productName + ":",-19}{pair.Value,8:F3} г.");                        
                     }
+
+                    Console.Write(new string(' ', 9)); // Дописываем пробелы до начала меню
                     Console.ResetColor(); // Сразу сбрасываем, чтобы меню вывелось серым!
 
                     // Проверяем, попадает ли текущая строка в диапазон отрисовки меню
@@ -242,7 +254,7 @@ class Program
 
 
 
-        while (true) /////////////////// пользователь работает ///////////////////////////////////////////////////////////
+        while (true) /////////////////// пользователь работает /////////////////////////////////////////////////////////////////////////////////////
         {
             ShowStorage();
             // Получаем объект ConsoleKeyInfo
@@ -259,29 +271,29 @@ class Program
                 }
 
                 //добавляем
-                var result = ParseProductAndCount("Увеличим что и сколько? (Стрелка вниз, число): ", things);
+                var result = ParseProductAndCount("Увеличим что и сколько? (Стрелка вниз, число): ", storage.Keys.ToArray());
 
                 string str = result.product;
-                double count = result.count;
-                
+                double count = result.count;                
+
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
                 Console.Write(new string(' ', Console.WindowWidth));
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
 
-                if (count == 0 || !storage.ContainsKey(str))
+                if (count <= 0 || !storage.ContainsKey(str))
                 {
                     Console.Write("    добавил 0... " );
                 }
                 else if (storage.ContainsKey(str))
                 {
                     storage[str] += count; //приплюсуем к элементу Словаря
-                    Console.Write($"    добавлены {count} \"{str}\" " );
+                    Console.Write($"    добавлены {count} \"{str.Split('|')[1]}\" " );
                 }
 
                 Console.SetCursorPosition(0, Console.CursorTop);
-                System.Threading.Thread.Sleep(1700);                
-            }
+                System.Threading.Thread.Sleep(1100);                
+            }            
 
 
             else if (key == ConsoleKey.Subtract || key == ConsoleKey.OemMinus) //******************вычесть ******************************************
@@ -292,30 +304,66 @@ class Program
                 var result = ParseProductAndCount("уменьшим что и сколько? (Стрелка вниз, число): ", storage.Keys.ToArray());
                 string str = result.product;
                 double count = result.count;
-
+               
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
                 Console.Write(new string(' ', Console.WindowWidth));
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
 
                 //если человек написал 0, либо нет такого продукта, либо продукт закончился, то не вычитаем
-                if (count == 0 || !storage.ContainsKey(str) || storage[str] == 0)
+                if (count <= 0 || !storage.ContainsKey(str) || storage[str] == 0)
                     Console.Write("    вычли 0...");
                 else if (storage.ContainsKey(str)) //иначе вычитаем
                 {
                     if(count > storage[str])
                     {
-                        Console.Write($"    съедены {storage[str]} \"{str}\"");
+                        Console.Write($"    съедены {storage[str]} \"{str.Split('|')[1]}\"");
                         storage[str] = 0;                        
                     }                        
                     else
                     {
-                        Console.Write($"    съедены {count} \"{str}\"");
+                        Console.Write($"    съедены {count} \"{str.Split('|')[1]}\"");
                         storage[str] -= count; //вычтем у элемента Словаря 
                     }
                 }
                 Console.SetCursorPosition(0, Console.CursorTop);
-                System.Threading.Thread.Sleep(1700);                
+                System.Threading.Thread.Sleep(1100);                
+            }
+
+
+            else if (key == ConsoleKey.Enter) //***************** приравнять ***************************************
+            {
+                if (storage.Count == 0)
+                {
+                    Console.Write("    сначала добавь позицию");
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    System.Threading.Thread.Sleep(1100);
+                    continue;
+                }
+
+                //добавляем
+                var result = ParseProductAndCount("продукт и количество? (Стрелка вниз, число): ", storage.Keys.ToArray());
+
+                string str = result.product;
+                double count = result.count;                
+
+                //стираем
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, Console.CursorTop - 1);
+
+                if (count == -1 || !storage.ContainsKey(str))
+                {
+                    Console.Write("    добавил 0... ");
+                }
+                else if (storage.ContainsKey(str))
+                {
+                    storage[str] = count; //занесём в элемент Словаря
+                    Console.Write($"    теперь \"{str.Split('|')[1]}\" = {count}");
+                }
+
+                Console.SetCursorPosition(0, Console.CursorTop);
+                System.Threading.Thread.Sleep(1100);
             }
 
 
@@ -340,7 +388,9 @@ class Program
                 bool isContains = false;
                 foreach (KeyValuePair<string, double> pair in storage)
                 {
-                    if (pair.Key.ToLower().Trim() == str.ToLower().Trim())
+                    string[] parts = pair.Key.Split('|'); //очистим от начальной '|'                    
+
+                    if (parts[1].ToLower().Trim() == str.ToLower().Trim())
                     {
                         isContains = true;
                         break;
@@ -360,7 +410,16 @@ class Program
                     continue;
                 }
 
-                double count = InputNumberDouble("введи количество продукта: ");               
+                double count = InputNumberDouble("введи количество продукта: ");
+                Console.Write("номер категории(1-6): ");                
+                string categStr = Console.ReadLine();
+                if(categStr.Length == 1)
+                    categStr += "5";
+                int categ = 85;
+                if (int.TryParse(categStr, out int num))
+                    categ = num;
+
+                str = $"{categ}|{str}"; // Собираем обратно ключ "0|Пакет молока"
                 storage[str] = count;  //добавим в Словарь                
             }
 
@@ -662,6 +721,13 @@ class Program
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
 
+        // --- МАГИЯ ОЧИСТКИ ПОДСКАЗОК ДЛЯ ЭКРАНА ---
+        string[] cleanHints = new string[hints.Length];
+        for (int i = 0; i < hints.Length; i++)
+        {
+            cleanHints[i] = hints[i].Split('|')[1];
+        }
+
         string userStr = "";    // То, что пользователь набрал своими руками (до 3 букв)
         string productStr = ""; // Текстовая строка (финализируется при первой цифре)
         string countStr = "";   // Числовая строка (заполняется только цифрами)
@@ -690,14 +756,14 @@ class Program
             else if (keyInfo.Key == ConsoleKey.DownArrow)
             {
                 // Стрелка работает, только если мы ещё НЕ начали вводить цифры
-                if (isDigitActive || hints == null || hints.Length == 0) continue;
+                if (isDigitActive || cleanHints == null || cleanHints.Length == 0) continue;
 
-                hintsIndex = FindBestHints(userStr, hints, hintsIndex, true);
+                hintsIndex = FindBestHints(userStr, cleanHints, hintsIndex, true);
 
                 // Стираем старый ввод с экрана
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
-                productStr = hints[hintsIndex]; // Подставляем значение из массива
+                productStr = cleanHints[hintsIndex]; // Подставляем значение из массива
                 isArrow = true;     // стрелка нажата                
                 Console.Write(productStr); // Печатаем новую подсказку
             }
@@ -706,14 +772,14 @@ class Program
             else if (keyInfo.Key == ConsoleKey.UpArrow)
             {
                 // Стрелка работает, только если мы ещё НЕ начали вводить цифры
-                if (isDigitActive || hints == null || hints.Length == 0) continue;
+                if (isDigitActive || cleanHints == null || cleanHints.Length == 0) continue;
 
-                hintsIndex = FindBestHints(userStr, hints, hintsIndex, false);
+                hintsIndex = FindBestHints(userStr, cleanHints, hintsIndex, false);
 
                 // Стираем старый ввод с экрана
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
-                productStr = hints[hintsIndex]; // Подставляем значение из массива
+                productStr = cleanHints[hintsIndex]; // Подставляем значение из массива
                 isArrow = true;     // стрелка нажата                
                 Console.Write(productStr); // Печатаем новую подсказку
             }
@@ -796,14 +862,17 @@ class Program
 
         // --- ФИНАЛЬНЫЙ ПРОСТЕЙШИЙ ПАРСИНГ ПОСЛЕ ENTER ---
 
-        // Проверяем, совпадает ли финализированная текстовая строка с реальным продуктом из базы
-        string finalProduct = hints.FirstOrDefault(h => h == productStr);
-        
-        if (finalProduct == null)        
+        // Если пользователь вообще не нажал стрелку и ничего не выбрал - выходим
+        if (hintsIndex == -1)
+        {
             return ("", 0);
+        }
+
+        // Извлекаем ОРИГИНАЛЬНЫЙ КЛЮЧ с палочкой (например, "1|Пакет молока") по сохранённому индексу
+        string finalProduct = hints[hintsIndex];
 
         // Переводим нашу изолированную числовую строку в double
-        double finalCount = 0;
+        double finalCount = -1;
         if (countStr.Length > 0)
         {
             // Заставляем систему парсить строку строго по правилам русской локали (с запятой)
@@ -811,10 +880,10 @@ class Program
                             System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out finalCount);
         }
         if (finalCount > 400)
-            finalCount = 0;
+            finalCount = -1;
 
         //округляем до 3-х цифр после запятой
-        finalCount = Math.Round(finalCount, 3, MidpointRounding.AwayFromZero);
+        finalCount = Math.Round(finalCount, 2, MidpointRounding.AwayFromZero);
         return (finalProduct, finalCount);
     }
 
