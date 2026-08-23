@@ -153,6 +153,7 @@ class Program
                     "Ent  Приравнять",
                     "P    добавить позицию",
                     "N    удалить позицию",
+                    "C    установить категорию",
                     "O    открыть файл",
                     "Esc  Выйти из программы"
             };
@@ -410,14 +411,8 @@ class Program
                     continue;
                 }
 
-                double count = InputNumberDouble("введи количество продукта: ");
-                Console.Write("номер категории(1-6): ");                
-                string categStr = Console.ReadLine();
-                if(categStr.Length == 1)
-                    categStr += "5";
-                int categ = 85;
-                if (int.TryParse(categStr, out int num))
-                    categ = num;
+                double count = InputNumberDouble("введи количество продукта: ");                
+                int categ = SetCategory("номер категории(1-6): ");                
 
                 str = $"{categ}|{str}"; // Собираем обратно ключ "0|Пакет молока"
                 storage[str] = count;  //добавим в Словарь                
@@ -434,7 +429,7 @@ class Program
                     continue;
                 }
 
-                string str = InputStringWithHints("что удалить? (либо Стрелка вниз): ", storage.Keys.ToArray(), 18);
+                string str = InputStringWithHints("что удалить? (либо Стрелка вниз): ", storage.Keys.ToArray());
 
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
@@ -444,17 +439,64 @@ class Program
                 //товара нет в словаре storage?
                 if (!storage.ContainsKey(str))
                 {
-                    Console.Write($"    \"{str}\" на складе нет..");
+                    Console.Write($"    \"{str}\" нет в списке..");
                     
                 }
                 else
                 {
                     storage.Remove(str);
-                    Console.Write($"    \"{str}\" удалены...");
+                    Console.Write($"    \"{str.Split('|')[1]}\" удалены...");
                 }
 
                 Console.SetCursorPosition(0, Console.CursorTop);
                 System.Threading.Thread.Sleep(1000);                
+            }
+
+            if (key == ConsoleKey.C) //******************установить категорию **********************************************
+            {
+                //добавляем
+                string str = InputStringWithHints("выбери продукт: ", storage.Keys.ToArray());
+                if (str == "") //если ничё не ввёл - выходим
+                {
+                    //стираем
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    //выходим
+                    Console.Write("    ну ладно...");
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    System.Threading.Thread.Sleep(1300);
+                    continue;
+
+                }
+                // пробежимся по всему хол-ку
+                bool isContains = false;
+                foreach (KeyValuePair<string, double> pair in storage)
+                {
+                    string[] parts = pair.Key.Split('|'); //очистим от начальной '|'                    
+
+                    if (parts[1].ToLower().Trim() == str.ToLower().Trim())
+                    {
+                        isContains = true;
+                        int categ = SetCategory("номер категории(1-6): ");
+                        double value = pair.Value;
+                        storage.Remove(pair.Key);
+                        storage[$"{categ}|{parts[1]}"] = value;                        
+                        break;
+                    }
+                }
+
+                if (!isContains)
+                {
+                    //стираем
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    //выходим
+                    Console.Write($"    \"{str}\" нету!");
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    System.Threading.Thread.Sleep(1200);                    
+                }                          
             }
 
 
@@ -609,13 +651,22 @@ class Program
         Console.Write(str + "\n");
         return str;
     }
-    static string InputStringWithHints(string inputMessage, string[] hints, int max)
+    static string InputStringWithHints(string inputMessage, string[] hints)
     {
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
+
+        // --- МАГИЯ ОЧИСТКИ ПОДСКАЗОК ДЛЯ ЭКРАНА ---
+        string[] cleanHints = new string[hints.Length];
+        for (int i = 0; i < hints.Length; i++)
+        {
+            cleanHints[i] = hints[i].Split('|')[1];
+        }
+
         string str = "";
         string userStr = ""; // хранит ТОЛЬКО то, что вбито руками
         int hintsIndex = -1; // Индекс подсказки
+        bool isArrow = false; // Флаг: нажата ли стрелка?
 
         while (true)
         {
@@ -624,34 +675,31 @@ class Program
             // нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
             {
-                // Если одни пробелы       
-                if (string.IsNullOrWhiteSpace(str))
+                // Если не нажата перед этим стрелка       
+                if (isArrow)
                 {
-                    str = "";
-                    break;
+                    // Извлекаем ОРИГИНАЛЬНЫЙ КЛЮЧ с палочкой (например, "1|Пакет молока") по сохранённому индексу
+                    str = hints[hintsIndex];
                 }
-                //Чистим строку
-                str = str.Trim();
-                //разбиваем строку по пробелам, игнорируя пустые элементы
-                string[] words = str.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                //сшиваем слова обратно, разделяя их ОДНИМ пробелом
-                str = string.Join(" ", words);
 
-                break;
+                Console.WriteLine();
+                return str;                
             }
 
             // нажата СТРЕЛКА ВНИЗ — листаем подсказки
             else if (keyInfo.Key == ConsoleKey.DownArrow)
             {
-                if (hints == null || hints.Length == 0) continue;                
+                if (cleanHints == null || cleanHints.Length == 0) continue;                
 
-                hintsIndex = FindBestHints(userStr, hints, hintsIndex, true);
+                hintsIndex = FindBestHints(userStr, cleanHints, hintsIndex, true);
 
                 // Стираем старый ввод с экрана
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
                 // Подставляем значение из массива
-                str = hints[hintsIndex];
+                str = cleanHints[hintsIndex];
+
+                isArrow = true;     // стрелка нажата  
 
                 // Печатаем новую подсказку
                 Console.Write(str);
@@ -660,15 +708,17 @@ class Program
             // нажата СТРЕЛКА ВВЕРХ — листаем подсказки назад
             else if (keyInfo.Key == ConsoleKey.UpArrow)
             {
-                if (hints == null || hints.Length == 0) continue;               
+                if (cleanHints == null || cleanHints.Length == 0) continue;               
 
-                hintsIndex = FindBestHints(userStr, hints, hintsIndex, false);
+                hintsIndex = FindBestHints(userStr, cleanHints, hintsIndex, false);
 
                 // Стираем старый ввод с экрана
                 ClearUserErrors(startingCursorTop, inputMessage, "", 0);
 
                 // Подставляем значение из массива
-                str = hints[hintsIndex];
+                str = cleanHints[hintsIndex];
+
+                isArrow = true;     // стрелка нажата  
 
                 // Печатаем новую подсказку
                 Console.Write(str);
@@ -677,6 +727,8 @@ class Program
             // нажат BACKSPACE — удаляем символ
             else if (keyInfo.Key == ConsoleKey.Backspace)
             {
+                isArrow = false;     // стрелка сброшена  
+
                 if (str.Length > 0)
                 {
                     // Если на экране была длинная подсказка, а пользователь нажал Backspace,
@@ -701,19 +753,16 @@ class Program
 
             // нажата обычная буква или знак — печатаем
             else if (!char.IsControl(keyInfo.KeyChar))
-            {                
-                if (str.Length < max)
+            {
+                if (str.Length < 4)
                 {
                     str += keyInfo.KeyChar;
                     userStr = str; // Запоминаем, что это ввёл именно пользователь
                     Console.Write(keyInfo.KeyChar);
+                    isArrow = false;     // стрелка сброшена 
                 }                
             }
-        }
-
-        ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-        Console.Write(str + "\n");
-        return str;
+        }       
     }
 
     static (string product, double count) ParseProductAndCount(string inputMessage, string[] hints)
@@ -885,6 +934,58 @@ class Program
         //округляем до 3-х цифр после запятой
         finalCount = Math.Round(finalCount, 2, MidpointRounding.AwayFromZero);
         return (finalProduct, finalCount);
+    }
+    static int SetCategory(string inputMessage)
+    {
+        int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
+        Console.Write(inputMessage);
+        string str = "";
+
+        // ЦИКЛ: Сбор букв до нажатия Enter
+        while (true)
+        {
+            var keyInfo = Console.ReadKey(true);
+
+            // нажат ENTER — завершаем ввод
+            if (keyInfo.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
+                break;
+            }
+
+            // нажат BACKSPACE — удаляем символ
+            else if (keyInfo.Key == ConsoleKey.Backspace)
+            {
+                if (str.Length > 0)
+                {
+                    // Стираем один символ                    
+                    str = str.Substring(0, str.Length - 1);
+
+                    // Перерисовываем экран через ClearUserErrors, чтобы убрать хвост подсказки
+                    ClearUserErrors(startingCursorTop, inputMessage, "", 0);
+                    Console.Write(str);
+                }
+            }
+
+            // нажата ЦИФРА (0-9)
+            else if (char.IsDigit(keyInfo.KeyChar))
+            {
+                if (str.Length < 3)
+                {
+                    str += keyInfo.KeyChar;
+                    Console.Write(keyInfo.KeyChar);
+                }
+            }            
+        }
+
+        // --- парсинг после ENTER ---
+        if (str.Length == 1)
+            str += "5";
+        int categ = 85;
+        if (int.TryParse(str, out int num))
+            categ = num;
+
+        return categ;
     }
 
     // функция для очистки ВСЕХ неверных данных введённых пользователем и вывода временного сообщения об ошибке
