@@ -56,9 +56,7 @@ class Program
         "35|Колбаски", "35|Палка сырокопчёной", "35|Сигара",
             "45|Мороженка", "45|Конфета","45|Печенинка розовая",
             "55|Каша овсяная", "55|Каша 5 злаков", "55|Макароны", "55|Лапша б/п", "55|Фасоль", "55|Гречка 100 г",
-            "65|Водка 100 г", "65|Пиво" };
-
-        
+            "65|Водка 100 г", "65|Пиво" };        
 
 
         // ---------------------------------
@@ -82,46 +80,7 @@ class Program
         else
         {
             // ФАЙЛ ЕСТЬ: Читаем его построчно
-            string[] lines = File.ReadAllLines(filePath);
-            foreach (string line in lines)
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                // Каждая строка в файле имеет формат: Группа|Название|Количество
-                // Например: 1|Пакет молока|14
-                string[] parts = line.Split('|');
-                if (parts.Length >= 3) //если '|' две
-                {
-                    string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
-
-                    
-                    // Парсим количество строго по правилам русской локали (с запятой)
-                    double.TryParse(parts[2], System.Globalization.NumberStyles.Any,
-                                    System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
-
-                    storage[key] = count;
-                }
-                else if (parts.Length == 2) //если '|' только одна
-                {
-                    if (line.IndexOf('|') < line.Length / 2) //и если '|' в начале строчки
-                    {
-                        string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
-                        storage[key] = 0;
-                    }
-                    else    //и если '|' в конце строчки
-                    {
-                        string key = $"8|{parts[0]}"; // Собираем обратно ключ "8|Пакет молока"
-                        double.TryParse(parts[1], System.Globalization.NumberStyles.Any,
-                                    System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
-                        storage[key] = count;
-                    }
-                }                
-                else  //если '|' вообще нет
-                {
-                    string key = $"8|{line}"; // Собираем обратно ключ "0|Пакет молока"
-                    storage[key] = 0;
-                }
-            }
+            LoadStorageFromFile(filePath, storage);
         }
 
 
@@ -190,7 +149,7 @@ class Program
                         }
                         else //если значение не целое, то 3 знака
                         {
-                            Console.Write($"{productName + ":",-19}{pairs[i].Value,8:F3} г.");                            
+                            Console.Write($"{productName + ":",-19}{pairs[i].Value,6:F1}     ");                            
                         }
 
                         Console.Write(new string(' ', 9)); // Дописываем пробелы до начала меню
@@ -232,7 +191,7 @@ class Program
                     }
                     else //если значение не целое, то 3 знака
                     {
-                        Console.Write($"{productName + ":",-19}{pair.Value,8:F3} г.");                        
+                        Console.Write($"{productName + ":",-19}{pair.Value,6}     ");                        
                     }
 
                     Console.Write(new string(' ', 9)); // Дописываем пробелы до начала меню
@@ -433,24 +392,29 @@ class Program
                     continue;
                 }
 
-                string str = InputStringWithHints("что удалить? (либо Стрелка вниз): ", storage.Keys.ToArray());
-
+                string str = InputStringWithHints("что удалить? (буквы + Стрелка): ", storage.Keys.ToArray());
+                
                 //стираем
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
                 Console.Write(new string(' ', Console.WindowWidth));
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
 
-                //товара нет в словаре storage?
-                if (!storage.ContainsKey(str))
+                // 1. Проверяем на пустую строку (отмена)
+                if (string.IsNullOrEmpty(str))
+                {
+                    Console.Write("    не удалено...");
+                }
+                // 2. Если не пустая, проверяем, что товара нет в базе
+                else if (!storage.ContainsKey(str))
                 {
                     Console.Write($"    \"{str}\" нет в списке..");
-                    
                 }
+                // 3. Во всех остальных случаях (строка заполнена и товар точно есть) — удаляем!
                 else
                 {
                     storage.Remove(str);
                     Console.Write($"    \"{str.Split('|')[1]}\" удалены...");
-                }
+                }                
 
                 Console.SetCursorPosition(0, Console.CursorTop);
                 System.Threading.Thread.Sleep(1000);                
@@ -497,6 +461,41 @@ class Program
             }
 
 
+
+            else if (key == ConsoleKey.O) //***************** открыть файл в Блокноте *****************
+            {
+                Console.Write("    открываю Блокнот...");
+
+                try
+                {
+                    // 1. Сначала сохраняем текущее состояние из памяти в файл, чтобы пользователь видел актуальный список
+                    SaveStorageToFile(filePath, storage);
+
+                    // 2. Запускаем системный Блокнот Windows и передаем ему путь к нашему файлу
+                    var process = System.Diagnostics.Process.Start("notepad.exe", filePath);
+
+                    // 3. Заставляем нашу консоль замереть и подождать, пока пользователь не закроет Блокнот!
+                    process.WaitForExit();
+
+                    // 4. Как только Блокнот закрыт — полностью очищаем старый словарь в памяти...
+                    storage.Clear();
+
+                    // 5. ...и вызываем ваш метод чтения файла заново! Программа подтянет все ручные изменения                    
+                    LoadStorageFromFile(filePath, storage);
+
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write("    список обновлен!    ");                    
+                }
+                catch
+                {
+                    Console.Write("    ошибка открытия файла...");
+                }
+
+                System.Threading.Thread.Sleep(1000);
+            }
+
+
+
             else if (key == ConsoleKey.Escape) //******************выход**************************************************
             {
                 // ПЕРЕД ВЫХОДОМ сохраняем все изменения в файл в Документы!
@@ -509,6 +508,50 @@ class Program
         }
     }
 
+    static void LoadStorageFromFile(string filePath, SortedDictionary<string, double> storage)
+    {
+        // ФАЙЛ ЕСТЬ: Читаем его построчно
+        string[] lines = File.ReadAllLines(filePath);
+        foreach (string line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            // Каждая строка в файле имеет формат: Группа|Название|Количество
+            // Например: 1|Пакет молока|14
+            string[] parts = line.Split('|');
+            if (parts.Length >= 3) //если '|' две
+            {
+                string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
+
+
+                // Парсим количество строго по правилам русской локали (с запятой)
+                double.TryParse(parts[2], System.Globalization.NumberStyles.Any,
+                                System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
+
+                storage[key] = count;
+            }
+            else if (parts.Length == 2) //если '|' только одна
+            {
+                if (line.IndexOf('|') < line.Length / 2) //и если '|' в начале строчки
+                {
+                    string key = $"{parts[0]}|{parts[1]}"; // Собираем обратно ключ "1|Пакет молока"
+                    storage[key] = 0;
+                }
+                else    //и если '|' в конце строчки
+                {
+                    string key = $"8|{parts[0]}"; // Собираем обратно ключ "8|Пакет молока"
+                    double.TryParse(parts[1], System.Globalization.NumberStyles.Any,
+                                System.Globalization.CultureInfo.GetCultureInfo("ru-RU"), out double count);
+                    storage[key] = count;
+                }
+            }
+            else  //если '|' вообще нет
+            {
+                string key = $"8|{line}"; // Собираем обратно ключ "0|Пакет молока"
+                storage[key] = 0;
+            }
+        }
+    }
     static double InputNumberDouble(string inputMessage, double max = 400)
     {
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
