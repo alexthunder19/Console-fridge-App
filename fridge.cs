@@ -411,8 +411,12 @@ class Program
                     continue;
                 }
 
-                double count = InputNumberDouble("введи количество продукта: ");                
-                int categ = SetCategory("номер категории(1-6): ");                
+                double count = InputNumberDouble("введи количество продукта: ");
+                if (count == -1) // если пользователь нажал Esc
+                    continue;
+                int categ = SetCategory("номер категории(1-6): ");
+                if (categ == -1) // если пользователь нажал Esc
+                    continue;
 
                 str = $"{categ}|{str}"; // Собираем обратно ключ "0|Пакет молока"
                 storage[str] = count;  //добавим в Словарь                
@@ -455,7 +459,7 @@ class Program
             if (key == ConsoleKey.C) //******************установить категорию **********************************************
             {
                 //добавляем
-                string str = InputStringWithHints("выбери продукт: ", storage.Keys.ToArray());
+                string str = InputStringWithHints("выбери продукт (буквы + Стрелка): ", storage.Keys.ToArray());
                 if (str == "") //если ничё не ввёл - выходим
                 {
                     //стираем
@@ -469,24 +473,17 @@ class Program
                     continue;
 
                 }
-                // пробежимся по всему хол-ку
-                bool isContains = false;
-                foreach (KeyValuePair<string, double> pair in storage)
-                {
-                    string[] parts = pair.Key.Split('|'); //очистим от начальной '|'                    
-
-                    if (parts[1].ToLower().Trim() == str.ToLower().Trim())
-                    {
-                        isContains = true;
-                        int categ = SetCategory("номер категории(1-6): ");
-                        double value = pair.Value;
-                        storage.Remove(pair.Key);
-                        storage[$"{categ}|{parts[1]}"] = value;                        
-                        break;
-                    }
+                
+                if (str.Contains('|')) //значит пользователь выбирал стрелочкой
+                {                    
+                    int categ = SetCategory("номер категории(1-6): ");
+                    if (categ == -1) // если пользователь нажал Esc                    
+                        continue;
+                    double value = storage[str];
+                    storage.Remove(str);
+                    storage[$"{categ}|{str.Split('|')[1]}"] = value;                    
                 }
-
-                if (!isContains)
+                else  //значит пользователь вбивал руками(
                 {
                     //стираем
                     Console.SetCursorPosition(0, Console.CursorTop - 1);
@@ -495,8 +492,8 @@ class Program
                     //выходим
                     Console.Write($"    \"{str}\" нету!");
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    System.Threading.Thread.Sleep(1200);                    
-                }                          
+                    System.Threading.Thread.Sleep(1200);
+                }
             }
 
 
@@ -522,6 +519,13 @@ class Program
         while (true)
         {
             var keyInfo = Console.ReadKey(true);
+
+            // нажат Esc — выходим
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
+                return -1;
+            }
 
             // нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
@@ -594,6 +598,13 @@ class Program
         {
             var keyInfo = Console.ReadKey(true);
 
+            // нажат Esc — выходим
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                str = "";
+                break;
+            }
+
             // нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
             {
@@ -645,10 +656,8 @@ class Program
                 }
             }
         }
-
-        // Если буквы есть — всё отлично
-        ClearUserErrors(startingCursorTop, inputMessage, "", 0);
-        Console.Write(str + "\n");
+        
+        Console.WriteLine();
         return str;
     }
     static string InputStringWithHints(string inputMessage, string[] hints)
@@ -656,7 +665,7 @@ class Program
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
 
-        // --- МАГИЯ ОЧИСТКИ ПОДСКАЗОК ДЛЯ ЭКРАНА ---
+        // --- ОЧИСТКА ПОДСКАЗОК ДЛЯ ЭКРАНА ---
         string[] cleanHints = new string[hints.Length];
         for (int i = 0; i < hints.Length; i++)
         {
@@ -671,6 +680,13 @@ class Program
         while (true)
         {
             var keyInfo = Console.ReadKey(true);
+
+            // нажат Esc — выходим
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine();
+                return "";                
+            }
 
             // нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
@@ -770,7 +786,7 @@ class Program
         int startingCursorTop = Console.CursorTop; // Запоминаем, где начинается строка ввода
         Console.Write(inputMessage);
 
-        // --- МАГИЯ ОЧИСТКИ ПОДСКАЗОК ДЛЯ ЭКРАНА ---
+        // --- ОЧИСТКА ПОДСКАЗОК ДЛЯ ЭКРАНА ---
         string[] cleanHints = new string[hints.Length];
         for (int i = 0; i < hints.Length; i++)
         {
@@ -790,6 +806,13 @@ class Program
         while (true)
         {            
             ConsoleKeyInfo keyInfo = Console.ReadKey(true);
+
+            // нажат Esc — выходим
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine();
+                return ("", 0);
+            }
 
             // 1. нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
@@ -946,6 +969,13 @@ class Program
         {
             var keyInfo = Console.ReadKey(true);
 
+            // нажат Esc — выходим
+            if (keyInfo.Key == ConsoleKey.Escape)
+            {
+                Console.WriteLine(); // Переводим каретку на новую строку, как обычный ReadLine
+                return -1;
+            }
+
             // нажат ENTER — завершаем ввод
             if (keyInfo.Key == ConsoleKey.Enter)
             {
@@ -1060,6 +1090,13 @@ class Program
             }
             else
             {
+                // Если это самый первый клик вверх (индекс -1), 
+                // принудительно прыгаем на самый последний элемент массива!
+                if (currentIndex == -1)
+                {
+                    return hints.Length - 1;
+                }
+
                 // Защита от ухода в минус при листании назад
                 return (currentIndex - 1 + hints.Length) % hints.Length;
             }
